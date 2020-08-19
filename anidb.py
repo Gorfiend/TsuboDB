@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 
-import pyanidb, pyanidb.hash
-try:
-	import ConfigParser
-except ImportError:
-	import configparser as ConfigParser
-import optparse, os, sys, getpass
+import pyanidb
+import pyanidb.hash
+
+import argparse
+import configparser
+import getpass
+import os
+import sys
+
 from collections import deque
 
 # Workaround for input/raw_input
@@ -23,70 +26,74 @@ blue   = lambda x: '\x1b[1;34m' + x + '\x1b[0m'
 
 config = {}
 try:
-	cp = ConfigParser.ConfigParser()
-	cp.read(os.path.expanduser('~/.pyanidb.conf'))
+	cp = configparser.ConfigParser()
+	cp.read([os.path.expanduser('~/.pyanidb.conf'), os.path.join('.', 'userData', 'pyanidb.conf')])
 	for option in cp.options('pyanidb'):
 		config[option] = cp.get('pyanidb', option)
-except:
+except IOError as e:
 	pass
 
 # Options.
 
-op = optparse.OptionParser()
+parser = argparse.ArgumentParser(description='Manage anidb files/mylist')
 
-op.add_option('-u', '--username', help = 'AniDB username.',
-	action = 'store', dest = 'username', default = config.get('username'))
-op.add_option('-p', '--password', help = 'AniDB password.',
-	action = 'store', dest = 'password', default = config.get('password'))
+parser.add_argument('-u', '--username', help = 'AniDB username.',
+	action = 'store', default = config.get('username'))
+parser.add_argument('-p', '--password', help = 'AniDB password.',
+	action = 'store', default = config.get('password'))
 
-op.add_option('-r', '--recursive', help = 'Recurse into directories.',
-	action = 'store_true', dest = 'recursive', default = False)
-op.add_option('-s', '--suffix', help = 'File suffix for recursive matching.',
-	action = 'append', dest = 'suffix', default = config.get('suffix', '').split())
-op.add_option('-c', '--no-cache', help = 'Do not use cached values.',
+parser.add_argument('-r', '--recursive', help = 'Recurse into directories.',
+	action = 'store_true', default = False)
+parser.add_argument('-s', '--suffix', help = 'File suffix for recursive matching.',
+	action = 'append', default = config.get('suffix', '').split())
+parser.add_argument('-c', '--no-cache', help = 'Do not use cached values.',
 	action = 'store_false', dest = 'cache', default = int(config.get('cache', '1')))
 
-op.add_option('-m', '--multihash', help = 'Calculate additional checksums.',
-	action = 'store_true', dest = 'multihash', default = False)
-op.add_option('-i', '--identify', help = 'Identify files.',
-	action = 'store_true', dest = 'identify', default = False)
-op.add_option('-a', '--add', help = 'Add files to mylist.',
-	action = 'store_true', dest = 'add', default = False)
-op.add_option('-w', '--watched', help = 'Mark files watched.',
-	action = 'store_true', dest = 'watched', default = False)
+parser.add_argument('-m', '--multihash', help = 'Calculate additional checksums.',
+	action = 'store_true', default = False)
+parser.add_argument('-i', '--identify', help = 'Identify files.',
+	action = 'store_true', default = False)
+parser.add_argument('-a', '--add', help = 'Add files to mylist.',
+	action = 'store_true', default = False)
+parser.add_argument('-w', '--watched', help = 'Mark files watched.',
+	action = 'store_true', default = False)
 
-op.add_option('-n', '--rename', help = 'Rename files.',
-	action = 'store_true', dest = 'rename', default = False)
-op.add_option('-f', '--format', help = 'Filename format.',
-	action = 'store', dest = 'format', default = config.get('format'))
+parser.add_argument('-n', '--rename', help = 'Rename files.',
+	action = 'store_true', default = False)
+parser.add_argument('-f', '--format', help = 'Filename format.',
+	action = 'store', default = config.get('format'))
 
-options, args = op.parse_args(sys.argv[1:])
+
+parser.add_argument('paths', metavar='Path', nargs='+',
+	help='path to video to import.')
+
+args = parser.parse_args()
 
 # Defaults.
 
-if options.cache:
+if args.cache:
 	try:
 		import xattr
 	except ImportError:
 		print(red('No xattr, caching disabled.'))
-		options.cache = False
-options.identify = options.identify or options.rename
-options.login = options.add or options.watched or options.identify
-if not options.suffix:
-	options.suffix = ['avi', 'ogm', 'mkv']
-if not options.format:
-	options.format = r'_[%group]_%anime_-_%epno%ver_[%CRC].%suf'
+		args.cache = False
+args.identify = args.identify or args.rename
+args.login = args.add or args.watched or args.identify
+if not args.suffix:
+	args.suffix = ['avi', 'ogm', 'mkv']
+if not args.format:
+	args.format = r'_[%group]_%anime_-_%epno%ver_[%CRC].%suf'
 
-if options.login:
-	if not options.username:
-		options.username = input('Username: ')
-	if not options.password:
-		options.password = getpass.getpass()
+if args.login:
+	if not args.username:
+		args.username = input('Username: ')
+	if not args.password:
+		args.password = getpass.getpass()
 
 # Input files.
 
 files = []
-remaining = deque(args)
+remaining = deque(args.paths)
 while remaining:
 	name = remaining.popleft()
 	if not os.access(name, os.R_OK):
@@ -94,14 +101,14 @@ while remaining:
 	elif os.path.isfile(name):
 		files.append(name)
 	elif os.path.isdir(name):
-		if not options.recursive:
+		if not args.recursive:
 			print('{0} {1}'.format(red('Is a directory:'), name))
 		else:
 			for sub in sorted(os.listdir(name)):
 				if sub.startswith('.'):
 					continue
 				sub = os.path.join(name, sub)
-				if os.path.isfile(sub) and any(sub.endswith('.' + suffix) for suffix in options.suffix):
+				if os.path.isfile(sub) and any(sub.endswith('.' + suffix) for suffix in args.suffix):
 					files.append(sub)
 				elif os.path.isdir(sub):
 					remaining.appendleft(sub)
@@ -112,11 +119,11 @@ if not files:
 
 # Authorization.
 
-if options.login:
-	a = pyanidb.AniDB(options.username, options.password)
+if args.login:
+	a = pyanidb.AniDB(args.username, args.password)
 	try:
 		a.auth()
-		print('{0} {1}'.format(blue('Logged in as user:'), options.username))
+		print('{0} {1}'.format(blue('Logged in as user:'), args.username))
 	except pyanidb.AniDBUserError:
 		print(red('Invalid username/password.'))
 		sys.exit(1)
@@ -131,7 +138,7 @@ if options.login:
 
 hashed = unknown = 0
 
-for file in pyanidb.hash.hash_files(files, options.cache, (('ed2k', 'md5', 'sha1', 'crc32') if options.multihash else ('ed2k',))):
+for file in pyanidb.hash.hash_files(files, args.cache, (('ed2k', 'md5', 'sha1', 'crc32') if args.multihash else ('ed2k',))):
 	print('{0} ed2k://|file|{1}|{2}|{3}|{4}'.format(blue('Hashed:'),  file.name, file.size, file.ed2k, ' (cached)' if file.cached else ''))
 	fid = (file.size, file.ed2k)
 	hashed += 1
@@ -139,22 +146,22 @@ for file in pyanidb.hash.hash_files(files, options.cache, (('ed2k', 'md5', 'sha1
 	try:
 		
 		# Multihash.
-		if options.multihash:
+		if args.multihash:
 			print('{0} {1}'.format(blue('MD5:'), file.md5))
 			print('{0} {1}'.format(blue('SHA1:'), file.sha1))
 			print('{0} {1}'.format(blue('CRC32:'), file.crc32))
 		
 		# Identify.
 		
-		if options.identify:
+		if args.identify:
 			info = a.get_file(fid, ('gtag', 'kanji', 'epno', 'state', 'epkanji', 'crc32', 'filetype'), True)
 			fid = int(info['fid'])
 			print('{0} [{1}] {2} - {3} - {4}'.format(green('Identified:'), info['gtag'], info['kanji'], info['epno'], info['epkanji']))
 		
 		# Renaming.
 		
-		if options.rename:
-			s = options.format
+		if args.rename:
+			s = args.format
 			rename_data = {
 				'group': info['gtag'],
 				'anime': info['romaji'],
@@ -174,13 +181,13 @@ for file in pyanidb.hash.hash_files(files, options.cache, (('ed2k', 'md5', 'sha1
 		
 		# Adding.
 		
-		if options.add:
-			a.add_file(fid, viewed = options.watched, retry = True)
+		if args.add:
+			a.add_file(fid, viewed = args.watched, retry = True)
 			print(green('Added to mylist.'))
 		
 		# Watched.
 		
-		elif options.watched:
+		elif args.watched:
 			a.add_file(fid, viewed = True, edit = True, retry = True)
 			print(green('Marked watched.'))
 		
