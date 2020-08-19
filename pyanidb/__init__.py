@@ -107,7 +107,7 @@ class AniDB:
 			return None
 	
 	def auth(self):
-		code, text, data = self.execute('AUTH', {'user': self.username, 'pass': self.password, 'protover': protover, 'client': client, 'clientver': clientver})
+		code, text, data = self.execute('AUTH', {'user': self.username, 'pass': self.password, 'protover': protover, 'client': client, 'clientver': clientver, 'enc': 'utf8'})
 		if code in (200, 201):
 			self.session = text.split(' ', 1)[0]
 			if code == 201:

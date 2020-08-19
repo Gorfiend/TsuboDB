@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import pyanidb, pyanidb.hash
 try:
@@ -147,9 +147,9 @@ for file in pyanidb.hash.hash_files(files, options.cache, (('ed2k', 'md5', 'sha1
 		# Identify.
 		
 		if options.identify:
-			info = a.get_file(fid, ('gtag', 'romaji', 'epno', 'state', 'epromaji', 'crc32', 'filetype'), True)
+			info = a.get_file(fid, ('gtag', 'kanji', 'epno', 'state', 'epkanji', 'crc32', 'filetype'), True)
 			fid = int(info['fid'])
-			print('{0} [{1}] {2} - {3} - {4}'.format(green('Identified:'), info['gtag'], info['romaji'], info['epno'], info['epromaji']))
+			print('{0} [{1}] {2} - {3} - {4}'.format(green('Identified:'), info['gtag'], info['kanji'], info['epno'], info['epkanji']))
 		
 		# Renaming.
 		
