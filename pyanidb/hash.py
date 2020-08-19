@@ -1,15 +1,21 @@
-import threading, time, os, hashlib, binascii
+import threading
+import time
+import os
+import hashlib
+import binascii
+
 try:
     import xattr
 except ImportError:
     xattr = None
+
 
 class Ed2k:
     def __init__(self):
         self.md4_partial = hashlib.new('md4')
         self.md4_final = hashlib.new('md4')
         self.size_total = 0
-    
+
     def update(self, data):
         pos = 0
         while pos < len(data):
@@ -20,22 +26,24 @@ class Ed2k:
             self.md4_partial.update(data[pos:pos + size])
             pos += size
             self.size_total += size
-    
+
     def hexdigest(self):
         if self.size_total > 9728000:
             self.md4_final.update(self.md4_partial.digest())
             return self.md4_final.hexdigest()
         return self.md4_partial.hexdigest()
 
+
 class Crc32:
     def __init__(self):
         self.s = 0
-    
+
     def update(self, data):
         self.s = binascii.crc32(data, self.s)
-    
+
     def hexdigest(self):
         return '{0:08x}'.format(self.s & 0xffffffff)
+
 
 hasher_obj = {
     'ed2k': Ed2k,
@@ -44,6 +52,7 @@ hasher_obj = {
     'crc32': Crc32,
 }
 
+
 class Hash:
     def __init__(self, filename, algorithms):
         update_list = []
@@ -51,13 +60,14 @@ class Hash:
             h = hasher_obj[a]()
             update_list.append(h.update)
             setattr(self, a, h.hexdigest)
-        
+
         f = open(filename, 'rb')
         data = f.read(131072)
         while data:
             for u in update_list:
                 u(data)
             data = f.read(131072)
+
 
 class File:
     def __init__(self, name, algorithms, cache):
@@ -73,7 +83,7 @@ class File:
             for a in algorithms:
                 setattr(self, a, getattr(h, a)())
             self.write_cache()
-    
+
     def read_cache(self):
         if not xattr:
             return
@@ -83,7 +93,7 @@ class File:
         for n, v in cache.items():
             setattr(self, n, v)
         self.cached = True
-    
+
     def write_cache(self):
         if not xattr:
             return
@@ -95,11 +105,12 @@ class File:
                     xattr.set(self.name, 'user.pyanidb.' + n, getattr(self, n))
         except IOError:
             pass
-    
+
     def clear_cache(self):
         for name in xattr.list(self.name):
             if name.decode().startswith('user.pyanidb.'):
                 xattr.remove(self.name, name)
+
 
 class Hashthread(threading.Thread):
     def __init__(self, filelist, hashlist, algorithms, cache, *args, **kwargs):
@@ -108,6 +119,7 @@ class Hashthread(threading.Thread):
         self.algorithms = algorithms
         self.cache = cache
         threading.Thread.__init__(self, *args, **kwargs)
+
     def run(self):
         try:
             while 1:
@@ -116,7 +128,8 @@ class Hashthread(threading.Thread):
         except IndexError:
             return
 
-def hash_files(files, cache = False, algorithms = ('ed2k',), num_threads = 1):
+
+def hash_files(files, cache=False, algorithms=('ed2k',), num_threads=1):
     hashlist = []
     threads = []
     for x in range(num_threads):

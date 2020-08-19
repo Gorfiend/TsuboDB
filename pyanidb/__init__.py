@@ -1,4 +1,5 @@
-import socket, time
+import socket
+import time
 
 protover = 3
 client = 'tsubodb'
@@ -27,35 +28,45 @@ acode = (
 info = fcode + acode
 info = dict([(info[i], 1 << i) for i in range(len(info)) if info[i]])
 
+
 class AniDBError(Exception):
     pass
+
 
 class AniDBTimeout(AniDBError):
     pass
 
+
 class AniDBLoginError(AniDBError):
     pass
+
 
 class AniDBUserError(AniDBLoginError):
     pass
 
+
 class AniDBReplyError(AniDBError):
     pass
+
 
 class AniDBUnknownFile(AniDBError):
     pass
 
+
 class AniDBNotInMylist(AniDBError):
     pass
+
 
 class AniDBUnknownAnime(AniDBError):
     pass
 
+
 class AniDBUnknownDescription(AniDBError):
     pass
 
+
 class AniDB:
-    def __init__(self, username, password, localport = 1234, server = ('api.anidb.info', 9000)):
+    def __init__(self, username, password, localport=1234, server=('api.anidb.info', 9000)):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(('0.0.0.0', localport))
         self.sock.settimeout(10)
@@ -64,22 +75,23 @@ class AniDB:
         self.server = server
         self.session = ''
         self.lasttime = 0
-    
+
     def __del__(self):
         self.logout()
         self.sock.close()
-    
+
     def newver_msg(self):
         print('New version available.')
-    
+
     def retry_msg(self):
         print('Connection timed out, retrying.')
-    
-    def execute(self, cmd, args = None, retry = False):
+
+    def execute(self, cmd, args=None, retry=False):
         if not args:
             args = {}
         while 1:
-            data = '{0} {1}\n'.format(cmd, '&'.join(['{0}={1}'.format(*a) for a in args.items()]))
+            params = '&'.join(['{0}={1}'.format(*a) for a in args.items()])
+            data = f'{cmd} {params}\n'
             t = time.time()
             if t < self.lasttime + 2:
                 time.sleep(self.lasttime + 2 - t)
@@ -98,16 +110,17 @@ class AniDB:
         data = [line.split('|') for line in data[1:-1]]
         code = int(code)
         return code, text, data
-    
+
     def ping(self):
         t = time.time()
         try:
             return self.execute('PING')[0] == 300 and time.time() - t or None
         except AniDBTimeout:
             return None
-    
+
     def auth(self):
-        code, text, data = self.execute('AUTH', {'user': self.username, 'pass': self.password, 'protover': protover, 'client': client, 'clientver': clientver, 'enc': 'utf8'})
+        code, text, data = self.execute('AUTH', {'user': self.username, 'pass': self.password, 'protover': protover,
+                                                 'client': client, 'clientver': clientver, 'enc': 'utf8'})
         if code in (200, 201):
             self.session = text.split(' ', 1)[0]
             if code == 201:
@@ -116,7 +129,7 @@ class AniDB:
             raise AniDBUserError()
         else:
             raise AniDBReplyError(code, text)
-    
+
     def logout(self):
         if self.session:
             try:
@@ -124,15 +137,15 @@ class AniDB:
                 self.session = ''
             except AniDBError:
                 pass
-    
-    def get_file(self, fid, info_codes, retry = False):
+
+    def get_file(self, fid, info_codes, retry=False):
         try:
             size, ed2k = fid
             args = {'size': size, 'ed2k': ed2k}
         except TypeError:
             args = {'fid': fid}
         info_codes = list(info_codes)
-        info_codes.sort(key = lambda x: info[x])
+        info_codes.sort(key=lambda x: info[x])
         info_code = sum([info[code] for code in info_codes])
         args.update({'s': self.session, 'fcode': info_code & 0xffffffff, 'acode': info_code >> 32})
         while 1:
@@ -145,8 +158,8 @@ class AniDB:
                 self.auth()
             else:
                 raise AniDBReplyError(code, text)
-    
-    def add_file(self, fid, state = None, viewed = False, source = None, storage = None, other = None, edit = False, retry = False):
+
+    def add_file(self, fid, state=None, viewed=False, source=None, storage=None, other=None, edit=False, retry=False):
         try:
             size, ed2k = fid
             args = {'size': size, 'ed2k': ed2k}
@@ -180,7 +193,7 @@ class AniDB:
             else:
                 raise AniDBReplyError(code, text)
 
-    def get_anime(self, aid = None, aname = None, amask = None, retry = False):
+    def get_anime(self, aid=None, aname=None, amask=None, retry=False):
         args = {}
         if not aid == None:
             args['aid'] = aid
@@ -203,7 +216,7 @@ class AniDB:
             else:
                 raise AniDBReplyError(code, text)
 
-    def get_animedesc(self, aid, retry = False):
+    def get_animedesc(self, aid, retry=False):
         args = {'aid': aid, 'part': 0, 's': self.session}
         description = ''
         while 1:
