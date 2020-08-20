@@ -4,11 +4,6 @@ import os
 import hashlib
 import binascii
 
-try:
-    import xattr
-except ImportError:
-    xattr = None
-
 
 class Ed2k:
     def __init__(self):
@@ -70,70 +65,36 @@ class Hash:
 
 
 class File:
-    def __init__(self, name, algorithms, cache):
+    def __init__(self, name, algorithms):
         self.name = name
         self.size = os.path.getsize(name)
         self.mtime = os.path.getmtime(name)
-        self.cached = False
-        if cache:
-            self.read_cache()
-        if False in [hasattr(self, a) for a in algorithms]:
-            self.cached = False
-            h = Hash(name, algorithms)
-            for a in algorithms:
-                setattr(self, a, getattr(h, a)())
-            self.write_cache()
-
-    def read_cache(self):
-        if not xattr:
-            return
-        cache = dict([(n[13:], xattr.get(self.name, n)) for n in xattr.list(self.name) if n.decode().startswith('user.pyanidb.')])
-        if 'mtime' not in cache or str(int(self.mtime)) != cache.pop('mtime'):
-            return
-        for n, v in cache.items():
-            setattr(self, n, v)
-        self.cached = True
-
-    def write_cache(self):
-        if not xattr:
-            return
-        try:
-            self.clear_cache()
-            xattr.set(self.name, 'user.pyanidb.mtime', str(int(self.mtime)))
-            for n in ('ed2k', 'md5', 'sha1', 'crc32'):
-                if hasattr(self, n):
-                    xattr.set(self.name, 'user.pyanidb.' + n, getattr(self, n))
-        except IOError:
-            pass
-
-    def clear_cache(self):
-        for name in xattr.list(self.name):
-            if name.decode().startswith('user.pyanidb.'):
-                xattr.remove(self.name, name)
+        h = Hash(name, algorithms)
+        for a in algorithms:
+            setattr(self, a, getattr(h, a)())
 
 
 class Hashthread(threading.Thread):
-    def __init__(self, filelist, hashlist, algorithms, cache, *args, **kwargs):
+    def __init__(self, filelist, hashlist, algorithms, *args, **kwargs):
         self.filelist = filelist
         self.hashlist = hashlist
         self.algorithms = algorithms
-        self.cache = cache
         threading.Thread.__init__(self, *args, **kwargs)
 
     def run(self):
         try:
             while 1:
                 f = self.filelist.pop(0)
-                self.hashlist.append(File(f, self.algorithms, self.cache))
+                self.hashlist.append(File(f, self.algorithms))
         except IndexError:
             return
 
 
-def hash_files(files, cache=False, algorithms=('ed2k',), num_threads=1):
+def hash_files(files, algorithms=('ed2k',), num_threads=1):
     hashlist = []
     threads = []
     for x in range(num_threads):
-        thread = Hashthread(files, hashlist, algorithms, cache)
+        thread = Hashthread(files, hashlist, algorithms)
         thread.start()
         threads.append(thread)
     while hashlist or sum([thread.isAlive() for thread in threads]):

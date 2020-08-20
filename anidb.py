@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
+# PYTHON_ARGCOMPLETE_OK
 
 import pyanidb
 import pyanidb.hash
+import pyanidb.localdb
 
+import argcomplete
 import argparse
 import configparser
 import getpass
@@ -37,19 +40,15 @@ except IOError as e:
 parser = argparse.ArgumentParser(description='Manage anidb files/mylist')
 
 parser.add_argument('-u', '--username', help='AniDB username.',
-                    action='store', default=config.get('username'))
+                    default=config.get('username'))
 parser.add_argument('-p', '--password', help='AniDB password.',
-                    action='store', default=config.get('password'))
+                    default=config.get('password'))
 
 parser.add_argument('-r', '--recursive', help='Recurse into directories.',
                     action='store_true', default=False)
 parser.add_argument('-s', '--suffix', help='File suffix for recursive matching.',
                     action='append', default=config.get('suffix', '').split())
-parser.add_argument('-c', '--no-cache', help='Do not use cached values.',
-                    action='store_false', dest='cache', default=int(config.get('cache', '1')))
 
-parser.add_argument('-m', '--multihash', help='Calculate additional checksums.',
-                    action='store_true', default=False)
 parser.add_argument('-i', '--identify', help='Identify files.',
                     action='store_true', default=False)
 parser.add_argument('-a', '--add', help='Add files to mylist.',
@@ -60,22 +59,22 @@ parser.add_argument('-w', '--watched', help='Mark files watched.',
 parser.add_argument('-n', '--rename', help='Rename files.',
                     action='store_true', default=False)
 parser.add_argument('-f', '--format', help='Filename format.',
-                    action='store', default=config.get('format'))
+                    default=config.get('format'))
+
+parser.add_argument('--database-file', help='Database file location.',
+                    default=config.get('database-file', 'userData/TsuboDB.db'))
+parser.add_argument('--anime-dir', help='Anime base dir for file scanning.',
+                    default=config.get('anime-dir', '.'))
 
 
 parser.add_argument('paths', metavar='Path', nargs='+',
                     help='videos to process.')
 
+argcomplete.autocomplete(parser)
 args = parser.parse_args()
 
 # Defaults.
 
-if args.cache:
-    try:
-        import xattr
-    except ImportError:
-        print(red('No xattr, caching disabled.'))
-        args.cache = False
 args.identify = args.identify or args.rename
 args.login = args.add or args.watched or args.identify
 if not args.suffix:
@@ -132,24 +131,23 @@ if args.login:
     except pyanidb.AniDBError as e:
         print('{0} {1}'.format(red('Fatal error:'), e))
         sys.exit(1)
+else:
+    a = None
 
 # Hashing.
 
 hashed = 0
 unknown = 0
 
-for file in pyanidb.hash.hash_files(files, args.cache, (('ed2k', 'md5', 'sha1', 'crc32') if args.multihash else ('ed2k',))):
-    print(f'{blue("Hashed:")} ed2k://|file|{file.name}|{file.size}|{file.ed2k}|{" (cached)" if file.cached else ""}')
-    fid = (file.size, file.ed2k)
+db = pyanidb.localdb.LocalDB(args.database_file, args.anime_dir, a)
+
+
+for file in db.get_files(files):
+    print(f'{blue("File:")} {file}')
+    fid = (file.size, file.hash)
     hashed += 1
 
     try:
-
-        # Multihash.
-        if args.multihash:
-            print('{0} {1}'.format(blue('MD5:'), file.md5))
-            print('{0} {1}'.format(blue('SHA1:'), file.sha1))
-            print('{0} {1}'.format(blue('CRC32:'), file.crc32))
 
         # Identify.
 
