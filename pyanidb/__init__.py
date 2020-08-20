@@ -92,6 +92,11 @@ class AniDB:
         while 1:
             params = '&'.join(['{0}={1}'.format(*a) for a in args.items()])
             data = f'{cmd} {params}\n'
+            if 'pass' in args:
+                paramsCen = params.replace(args['pass'], 'PASSWORD')
+            else:
+                paramsCen = params
+            print('>', cmd, paramsCen)
             t = time.time()
             if t < self.lasttime + 2:
                 time.sleep(self.lasttime + 2 - t)
@@ -99,6 +104,7 @@ class AniDB:
             self.sock.sendto(data.encode(), 0, self.server)
             try:
                 data = self.sock.recv(8192).decode().split('\n')
+                print('<', data)
             except socket.timeout:
                 if retry:
                     self.retry_msg()
