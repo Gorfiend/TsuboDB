@@ -1,11 +1,16 @@
 
 import sqlite3
 import os
-import pyanidb.hash
+
+from pyanidb.api import AniDB
+from pyanidb.hash import hash_files
+from pyanidb.types import *
+
+from typing import Iterable, Optional
 
 
 class LocalDB:
-    def __init__(self, db_file, base_anime_folder, anidb):
+    def __init__(self, db_file: str, base_anime_folder: str, anidb: Optional[AniDB]):
         self.base_anime_folder = base_anime_folder
         self.conn = sqlite3.connect(db_file)
         self.anidb = anidb
@@ -15,42 +20,39 @@ class LocalDB:
         self.conn.commit()
         self.conn.close()
 
-    # def get_file(self, fid, info_codes, retry=False):
+    def get_file(self, local: LocalFileInfo) -> FileInfo:
+        # , ('gtag', 'kanji', 'epno', 'state', 'epkanji', 'crc32', 'filetype'), True
+        if not self.anidb:
+            print('ERR: needed to log in to AniDB!')
+            raise AniDBError()
 
-    # def add_file(self, fid, state=None, viewed=False, source=None, storage=None, other=None, edit=False, retry=False):
+        info = self.anidb.get_file(local, ('eid', 'aid', 'english', 'romaji', 'kanji', 'epname', 'epromaji', 'epkanji', 'epno', 'quality', 'length',
+            'dublang', 'sublang', 'vres', 'filetype'), True)
+        print(info)
+        local.fid = Fid(info['fid'])
+        local.checked = True
+        return FileInfo(local, Eid(info['eid']), Aid(info['aid']))
+
+
+    def add_file(self, fid, state=None, viewed=False, source=None, storage=None, other=None, edit=False, retry=False):
+        pass
 
     # def get_anime(self, aid=None, aname=None, amask=None, retry=False):
 
-    # def get_animedesc(self, aid, retry=False):
-
-    def get_files(self, files):
+    def get_files(self, files: Iterable[str]) -> Iterable[LocalFileInfo]:
         c = self.conn.cursor()
         unhashed = list()
         for f in files:
             rel = os.path.relpath(f, self.base_anime_folder)
             row = c.execute('SELECT * from LocalFiles WHERE Path LIKE ?', [rel]).fetchone()
             if row:
-                yield FileInfo(*row)
+                yield LocalFileInfo(*row)
             else:
                 unhashed.append(f)
 
-        hashed_files = pyanidb.hash.hash_files(unhashed)
+        hashed_files = hash_files(unhashed)
         for h in hashed_files:
-            fi = FileInfo(os.path.relpath(h.name, self.base_anime_folder), h.size, h.ed2k, 0, 0)
+            fi = LocalFileInfo(os.path.relpath(h.name, self.base_anime_folder), h.size, h.ed2k, Fid(0), False)
             # Need the replace in case the file got deleted previously
-            c.execute('INSERT OR REPLACE INTO LocalFiles VALUES(?, ?, ?, 0, 0)', [fi.path, fi.size, fi.hash])
+            c.execute('INSERT OR REPLACE INTO LocalFiles VALUES(?, ?, ?, 0, 0)', [fi.path, fi.size, fi.ed2k])
             yield fi
-
-        # return hashed
-
-
-class FileInfo:
-    def __init__(self, path, size, hash, fid, checked):
-        self.path = path
-        self.size = size
-        self.hash = hash
-        self.fid = fid
-        self.checked = checked
-
-    def __str__(self):
-        return f'{self.path}|size={self.size}|ed2k={self.hash}'

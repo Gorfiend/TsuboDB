@@ -2,6 +2,7 @@
 # PYTHON_ARGCOMPLETE_OK
 
 import pyanidb
+import pyanidb.api
 import pyanidb.hash
 import pyanidb.localdb
 
@@ -14,9 +15,7 @@ import sys
 
 from collections import deque
 
-# Workaround for input/raw_input
-if hasattr(__builtins__, 'raw_input'):
-    input = raw_input
+from typing import Iterable, Optional
 
 # Colors.
 def red(x): return '\x1b[31m' + x + '\x1b[0m'
@@ -117,22 +116,21 @@ if not files:
 
 # Authorization.
 
+a: Optional[pyanidb.api.AniDB] = None
 if args.login:
-    a = pyanidb.AniDB(args.username, args.password)
+    a = pyanidb.api.AniDB(args.username, args.password)
     try:
         a.auth()
         print('{0} {1}'.format(blue('Logged in as user:'), args.username))
-    except pyanidb.AniDBUserError:
+    except pyanidb.types.AniDBUserError:
         print(red('Invalid username/password.'))
         sys.exit(1)
-    except pyanidb.AniDBTimeout:
+    except pyanidb.types.AniDBTimeout:
         print(red('Connection timed out.'))
         sys.exit(1)
-    except pyanidb.AniDBError as e:
+    except pyanidb.types.AniDBError as e:
         print('{0} {1}'.format(red('Fatal error:'), e))
         sys.exit(1)
-else:
-    a = None
 
 # Hashing.
 
@@ -144,7 +142,6 @@ db = pyanidb.localdb.LocalDB(args.database_file, args.anime_dir, a)
 
 for file in db.get_files(files):
     print(f'{blue("File:")} {file}')
-    fid = (file.size, file.hash)
     hashed += 1
 
     try:
@@ -152,9 +149,8 @@ for file in db.get_files(files):
         # Identify.
 
         if args.identify:
-            info = a.get_file(fid, ('gtag', 'kanji', 'epno', 'state', 'epkanji', 'crc32', 'filetype'), True)
-            fid = int(info['fid'])
-            print(f'{green("Identified:")} [{info["gtag"]}] {info["kanji"]} - {info["epno"]} - {info["epkanji"]}')
+            info = db.get_file(file)
+            print(f'{green("Identified:")} {info.kanji} - {info["epno"]} - {info["epkanji"]}')
 
         # Renaming.
 
@@ -180,20 +176,20 @@ for file in db.get_files(files):
         # Adding.
 
         if args.add:
-            a.add_file(fid, viewed=args.watched, retry=True)
+            db.add_file(fid, viewed=args.watched, retry=True)
             print(green('Added to mylist.'))
 
         # Watched.
 
         elif args.watched:
-            a.add_file(fid, viewed=True, edit=True, retry=True)
+            db.add_file(fid, viewed=True, edit=True, retry=True)
             print(green('Marked watched.'))
 
-    except pyanidb.AniDBUnknownFile:
+    except pyanidb.types.AniDBUnknownFile:
         print(red('Unknown file.'))
         unknown += 1
 
-    except pyanidb.AniDBNotInMylist:
+    except pyanidb.types.AniDBNotInMylist:
         print(red('File not in mylist.'))
 
 # Finished.

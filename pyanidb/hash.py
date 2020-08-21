@@ -4,6 +4,8 @@ import os
 import hashlib
 import binascii
 
+from typing import Iterable, List
+
 
 class Ed2k:
     def __init__(self):
@@ -64,18 +66,17 @@ class Hash:
             data = f.read(131072)
 
 
-class File:
+class HashedFile:
     def __init__(self, name, algorithms):
         self.name = name
         self.size = os.path.getsize(name)
         self.mtime = os.path.getmtime(name)
         h = Hash(name, algorithms)
-        for a in algorithms:
-            setattr(self, a, getattr(h, a)())
+        self.ed2k = HashStr(h.ed2k)
 
 
 class Hashthread(threading.Thread):
-    def __init__(self, filelist, hashlist, algorithms, *args, **kwargs):
+    def __init__(self, filelist, hashlist: Iterable[HashedFile], algorithms, *args, **kwargs):
         self.filelist = filelist
         self.hashlist = hashlist
         self.algorithms = algorithms
@@ -90,14 +91,14 @@ class Hashthread(threading.Thread):
             return
 
 
-def hash_files(files, algorithms=('ed2k',), num_threads=1):
-    hashlist = []
+def hash_files(files, algorithms=('ed2k',), num_threads=1) -> Iterable[HashedFile]:
+    hashlist: List[HashedFile] = []
     threads = []
     for x in range(num_threads):
         thread = Hashthread(files, hashlist, algorithms)
         thread.start()
         threads.append(thread)
-    while hashlist or sum([thread.isAlive() for thread in threads]):
+    while hashlist or any([thread.isAlive() for thread in threads]):
         try:
             yield hashlist.pop(0)
         except IndexError:
