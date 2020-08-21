@@ -2,7 +2,6 @@ import socket
 import time
 
 from pyanidb.types import *
-from enum import Flag, auto
 
 protover = 3
 client = 'tsubodb'
@@ -16,36 +15,25 @@ states = {
     'shared': 4,
     'release': 5}
 
-fcode = (
-    '', 'aid', 'eid', 'gid', 'lid', '', '', '',
-    'state', 'size', 'ed2k', 'md5', 'sha1', 'crc32', '', '',
-    'dublang', 'sublang', 'quality', 'source', 'acodec', 'abitrate', 'vcodec', 'vbitrate',
-    'vres', 'filetype', 'length', 'description', '', '', '', '')
+
+fmask = [
+    '', 'aid', 'eid', 'gid', 'lid', 'otherepisodes', 'deprecated', 'state',
+    'size', 'ed2k', 'md5', 'sha1', 'crc32', '', 'vidcolordep', '',
+    'quality', 'source', 'acodec', 'abitrate', 'vcodec', 'vbitrate', 'vres', 'filetype',
+    'dublang', 'sublang', 'length', 'description', 'aireddate', '', '', 'anidbfilename',
+    'mstate', 'mfilestate', 'mviewed', 'mviewdate', 'mstorage', 'msource', 'mother', '']
+    # Note: the m* mylist infos don't seem to work (return blanks always)
+
+amask = [
+    'eptotal', 'eplast', 'year', 'type', 'relaidlsit', 'reladitype', 'categorylist', '',
+    'romaji', 'kanji', 'english', 'other', 'shortname', 'synonyms', '', '',
+    'epno', 'epname', 'epromaji', 'epkanji', 'eprating', 'epvotecount', '', '',
+    'groupname', 'groupshortname', 'category', '', '', '', '', 'dateaidupdated']
 
 
-acode = (
-    'gname', 'gtag', '', '', '', '', '', '',
-    'epno', 'epname', 'epromaji', 'epkanji', '', '', '', '',
-    'eptotal', 'eplast', 'year', 'type', 'romaji', 'kanji', 'english', 'other',
-    'short', 'synonym', 'category', '', '', '', '', '')
-
-# fmask = (
-#     '', 'aid', 'eid', 'gid', 'lid', 'otherepisodes', 'deprecated', 'state',
-#     'size', 'ed2k', 'md5', 'sha1', 'crc32', '', 'vidcolordep', '',
-#     'quality', 'source', 'acodec', 'abitrate', 'vcodec', 'vbitrate', 'vres', 'filetype',
-#     'dublang', 'sublang', 'length', 'description', 'aireddate', '', '', 'anidbfilename',
-#     'mstate', 'mfilestate', 'mviewed', 'mviewdate', 'mstorage', 'msource', 'mother', '')
-
-# amask = (
-#     'eptotal', 'eplast', 'year', 'type', 'relaidlsit', 'reladitype', 'categorylist', '',
-#     'epno', 'epname', 'epromaji', 'epkanji', '', '', '', '',
-#     '', '', '', '', 'romaji', 'kanji', 'english', 'other',
-#     'short', 'synonym', 'category', '', '', '', '', '')
-
-
-info = fcode + acode
-info = dict([(info[i], 1 << i) for i in range(len(info)) if info[i]])
-
+joined_masks = fmask + amask
+joined_masks.reverse()
+masks = dict([(joined_masks[i], 1 << i) for i in range(len(joined_masks)) if joined_masks[i]])
 
 class AniDB:
     def __init__(self, username: str, password: str, localport: int = 1234, server=('api.anidb.info', 9000)):
@@ -71,6 +59,10 @@ class AniDB:
     def execute(self, cmd, args=None, retry=False):
         if not args:
             args = {}
+        if cmd not in ('PING', 'ENCRYPT', 'ENCODING', 'AUTH', 'VERSION'):
+            if not self.session:
+                self.auth()
+            args['s'] = self.session
         while 1:
             params = '&'.join(['{0}={1}'.format(*a) for a in args.items()])
             data = f'{cmd} {params}\n'
@@ -133,9 +125,10 @@ class AniDB:
         else:
             args = {'size': file.size, 'ed2k': file.ed2k}
         info_codes = list(info_codes)
-        info_codes.sort(key=lambda x: info[x])
-        info_code = sum([info[code] for code in info_codes])
-        args.update({'s': self.session, 'fcode': info_code & 0xffffffff, 'acode': info_code >> 32})
+        info_codes.sort(key=lambda x: masks[x])
+        info_codes.reverse()
+        info_code = sum([masks[code] for code in info_codes])
+        args.update({'fmask': f'{info_code >> 32:0{10}X}', 'amask': f'{info_code  & 0xffffffff:0{8}X}'})
         while 1:
             code, text, data = self.execute('FILE', args, retry)
             if code == 220:
@@ -147,12 +140,30 @@ class AniDB:
             else:
                 raise AniDBReplyError(code, text)
 
-    def add_file(self, fid, state=None, viewed=False, source=None, storage=None, other=None, edit=False, retry=False):
-        try:
-            size, ed2k = fid
-            args = {'size': size, 'ed2k': ed2k}
-        except TypeError:
-            args = {'fid': fid}
+    def get_mylist(self, fid: Fid, retry=False):
+        args = {'fid': fid}
+        while 1:
+            code, text, data = self.execute('MYLIST', args, retry)
+            if code == 221:
+                return data[0]
+            elif code in (501, 506):
+                self.auth()
+            else:
+                raise AniDBReplyError(code, text)
+
+    def get_mylist_lid(self, lid: Lid, retry=False):
+        args = {'lid': lid}
+        while 1:
+            code, text, data = self.execute('MYLIST', args, retry)
+            if code == 221:
+                return data[0]
+            elif code in (501, 506):
+                self.auth()
+            else:
+                raise AniDBReplyError(code, text)
+
+    def add_file(self, fid: Fid, state=None, viewed=False, source=None, storage=None, other=None, edit=False, retry=False):
+        args: dict = {'fid': fid}
         if not edit and state == None:
             state = 'hdd'
         if state != None:
@@ -167,11 +178,10 @@ class AniDB:
             args['other'] = other
         if edit:
             args['edit'] = 1
-        args['s'] = self.session
         while 1:
             code, text, data = self.execute('MYLISTADD', args, retry)
             if code in (210, 310, 311):
-                return
+                return code, data[0]
             elif code == 320:
                 raise AniDBUnknownFile()
             elif code == 411:
@@ -191,7 +201,6 @@ class AniDB:
             raise TypeError('must set either aid or aname')
 
         args['amask'] = amask or '00'*7
-        args['s'] = self.session
 
         while 1:
             code, text, data = self.execute('ANIME', args, retry)
@@ -205,7 +214,7 @@ class AniDB:
                 raise AniDBReplyError(code, text)
 
     def get_animedesc(self, aid, retry=False):
-        args = {'aid': aid, 'part': 0, 's': self.session}
+        args = {'aid': aid, 'part': 0}
         description = ''
         while 1:
             code, text, data = self.execute('ANIMEDESC', args, retry)

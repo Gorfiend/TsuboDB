@@ -4,6 +4,7 @@ import os
 import hashlib
 import binascii
 
+from pyanidb.types import *
 from typing import Iterable, List
 
 
@@ -42,28 +43,17 @@ class Crc32:
         return '{0:08x}'.format(self.s & 0xffffffff)
 
 
-hasher_obj = {
-    'ed2k': Ed2k,
-    'md5': lambda: hashlib.new('md5'),
-    'sha1': lambda: hashlib.new('sha1'),
-    'crc32': Crc32,
-}
-
 
 class Hash:
     def __init__(self, filename, algorithms):
-        update_list = []
-        for a in algorithms:
-            h = hasher_obj[a]()
-            update_list.append(h.update)
-            setattr(self, a, h.hexdigest)
+        h = Ed2k()
 
         f = open(filename, 'rb')
         data = f.read(131072)
         while data:
-            for u in update_list:
-                u(data)
+            h.update(data)
             data = f.read(131072)
+        self.ed2k = h.hexdigest()
 
 
 class HashedFile:
@@ -86,7 +76,7 @@ class Hashthread(threading.Thread):
         try:
             while 1:
                 f = self.filelist.pop(0)
-                self.hashlist.append(File(f, self.algorithms))
+                self.hashlist.append(HashedFile(f, self.algorithms))
         except IndexError:
             return
 

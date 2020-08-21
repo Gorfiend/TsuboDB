@@ -55,8 +55,6 @@ parser.add_argument('-a', '--add', help='Add files to mylist.',
 parser.add_argument('-w', '--watched', help='Mark files watched.',
                     action='store_true', default=False)
 
-parser.add_argument('-n', '--rename', help='Rename files.',
-                    action='store_true', default=False)
 parser.add_argument('-f', '--format', help='Filename format.',
                     default=config.get('format'))
 
@@ -74,7 +72,6 @@ args = parser.parse_args()
 
 # Defaults.
 
-args.identify = args.identify or args.rename
 args.login = args.add or args.watched or args.identify
 if not args.suffix:
     args.suffix = ['avi', 'ogm', 'mkv']
@@ -114,84 +111,48 @@ if not files:
     print(blue('Nothing to do.'))
     sys.exit(0)
 
-# Authorization.
 
-a: Optional[pyanidb.api.AniDB] = None
-if args.login:
-    a = pyanidb.api.AniDB(args.username, args.password)
-    try:
-        a.auth()
-        print('{0} {1}'.format(blue('Logged in as user:'), args.username))
-    except pyanidb.types.AniDBUserError:
-        print(red('Invalid username/password.'))
-        sys.exit(1)
-    except pyanidb.types.AniDBTimeout:
-        print(red('Connection timed out.'))
-        sys.exit(1)
-    except pyanidb.types.AniDBError as e:
-        print('{0} {1}'.format(red('Fatal error:'), e))
-        sys.exit(1)
+a = pyanidb.api.AniDB(args.username, args.password)
+db = pyanidb.localdb.LocalDB(args.database_file, args.anime_dir, a)
 
 # Hashing.
 
-hashed = 0
-unknown = 0
+try:
+    for file in db.get_files(files):
+        print(f'{blue("File:")} {file}')
 
-db = pyanidb.localdb.LocalDB(args.database_file, args.anime_dir, a)
+        try:
+            # Identify.
 
+            if args.identify:
+                info = db.get_file(file)
+                if info:
+                    print(f'{green("Identified:")} {info.aname_k} - {info.epno} - {info.epname_k}')
 
-for file in db.get_files(files):
-    print(f'{blue("File:")} {file}')
-    hashed += 1
+            # Adding.
 
-    try:
+            if args.add:
+                db.add_file(info.fid, viewed=args.watched, retry=True)
+                print(green('Added to mylist.'))
 
-        # Identify.
+            # Watched.
 
-        if args.identify:
-            info = db.get_file(file)
-            print(f'{green("Identified:")} {info.kanji} - {info["epno"]} - {info["epkanji"]}')
+            elif args.watched:
+                db.add_file(info.fid, viewed=True, edit=True, retry=True)
+                print(green('Marked watched.'))
 
-        # Renaming.
+        except pyanidb.types.AniDBUnknownFile:
+            print(red('Unknown file.'))
 
-        if args.rename:
-            s = args.format
-            rename_data = {
-                'group': info['gtag'],
-                'anime': info['romaji'],
-                'epno': info['epno'],
-                'ver': {0: '', 4: 'v2', 8: 'v3', 16: 'v4', 32: 'v5'}[(int(info['state']) & 0x3c)],
-                'crc': info['crc32'],
-                'CRC': info['crc32'].upper(),
-                'suf': info['filetype']}
-            for name, value in rename_data.items():
-                s = s.replace(r'%' + name, value)
-            if s[0] == '_':
-                s = s[1:].replace(' ', '_')
-            s = s.replace('/', '_')
+        except pyanidb.types.AniDBNotInMylist:
+            print(red('File not in mylist.'))
+except pyanidb.types.AniDBUserError:
+    print(red('Invalid username/password.'))
+    sys.exit(1)
+except pyanidb.types.AniDBTimeout:
+    print(red('Connection timed out.'))
+    sys.exit(1)
+except pyanidb.types.AniDBError as e:
+    print('{0} {1}'.format(red('Fatal error:'), e))
+    sys.exit(1)
 
-            print('{0} {1}'.format(yellow('Renaming to:'), s))
-            os.rename(file.name, os.path.join(os.path.split(file.name)[0], s))
-
-        # Adding.
-
-        if args.add:
-            db.add_file(fid, viewed=args.watched, retry=True)
-            print(green('Added to mylist.'))
-
-        # Watched.
-
-        elif args.watched:
-            db.add_file(fid, viewed=True, edit=True, retry=True)
-            print(green('Marked watched.'))
-
-    except pyanidb.types.AniDBUnknownFile:
-        print(red('Unknown file.'))
-        unknown += 1
-
-    except pyanidb.types.AniDBNotInMylist:
-        print(red('File not in mylist.'))
-
-# Finished.
-
-print(blue(f'Hashed {hashed} files{f", {unknown} unknown" if unknown else ""}.'))
