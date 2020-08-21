@@ -40,11 +40,6 @@ class FileInfo:
         return f'{self.path}|size={self.size}|ed2k={self.ed2k}'
 
 
-class Episode:
-    def __init__(self, eid: Eid, aid: Aid):
-        self.eid = eid
-        self.aid = aid
-
 class MyList:
     def __init__(self, lid: Lid, fid: Fid, eid: Eid, aid: Aid, gid: Gid, date: int, state: int, viewdate: int):
         self.lid = lid
@@ -55,6 +50,7 @@ class MyList:
         self.date = date
         self.state = state
         self.viewdate = viewdate
+        self.watched = viewdate > 0
 
 #AniDB exceptions
 

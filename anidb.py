@@ -115,30 +115,25 @@ if not files:
 a = pyanidb.api.AniDB(args.username, args.password)
 db = pyanidb.localdb.LocalDB(args.database_file, args.anime_dir, a)
 
-# Hashing.
-
 try:
     for file in db.get_files(files):
         print(f'{blue("File:")} {file}')
 
         try:
             # Identify.
-
             if args.identify:
                 info = db.get_file(file)
                 if info:
                     print(f'{green("Identified:")} {info.aname_k} - {info.epno} - {info.epname_k}')
 
             # Adding.
-
             if args.add:
                 db.add_file(info.fid, viewed=args.watched, retry=True)
                 print(green('Added to mylist.'))
 
             # Watched.
-
             elif args.watched:
-                db.add_file(info.fid, viewed=True, edit=True, retry=True)
+                db.mark_watched(info.fid)
                 print(green('Marked watched.'))
 
         except pyanidb.types.AniDBUnknownFile:

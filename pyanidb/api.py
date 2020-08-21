@@ -191,6 +191,21 @@ class AniDB:
             else:
                 raise AniDBReplyError(code, text)
 
+    def mark_watched(self, lid: Lid):
+        args: dict = {'lid': lid}
+        args['edit'] = 1
+        args['viewed'] = 1
+        while 1:
+            code, text, data = self.execute('MYLISTADD', args)
+            if code == 311:
+                return
+            elif code == 411:
+                raise AniDBNotInMylist()
+            elif code in (501, 506):
+                self.auth()
+            else:
+                raise AniDBReplyError(code, text)
+
     def get_anime(self, aid=None, aname=None, amask=None, retry=False):
         args = {}
         if not aid == None:

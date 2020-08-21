@@ -73,7 +73,7 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         if code == 210:
             lid = Lid(data[0])
             data = self.anidb.get_mylist_lid(lid)
-        mylist = MyList(data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7])
+        mylist = MyList(data[0], data[1], data[2], data[3], data[4], int(data[5]), int(data[6]), int(data[7]))
 
         self.conn.execute(
 '''
@@ -83,7 +83,10 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?)
 
         return self._get_mylist_db(fid)
 
-    # def get_anime(self, aid=None, aname=None, amask=None, retry=False):
+    def mark_watched(self, fid: Fid) -> None:
+        mylist = self.get_mylist(fid)
+        if mylist and not mylist.watched:
+            self.anidb.mark_watched(mylist.lid)
 
     def get_files(self, files: Iterable[str]) -> Iterable[LocalFileInfo]:
         c = self.conn.cursor()
