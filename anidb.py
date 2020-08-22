@@ -11,6 +11,7 @@ import argparse
 import configparser
 import getpass
 import os
+import subprocess
 import sys
 
 from collections import deque
@@ -38,34 +39,29 @@ except IOError as e:
 
 parser = argparse.ArgumentParser(description='Manage anidb files/mylist')
 
-parser.add_argument('-u', '--username', help='AniDB username.',
-                    default=config.get('username'))
-parser.add_argument('-p', '--password', help='AniDB password.',
-                    default=config.get('password'))
+parser.add_argument('-u', '--username', help='AniDB username.', default=config.get('username'))
+parser.add_argument('-p', '--password', help='AniDB password.', default=config.get('password'))
 
-parser.add_argument('-r', '--recursive', help='Recurse into directories.',
-                    action='store_true', default=False)
+parser.add_argument('-r', '--recursive', help='Recurse into directories.', action='store_true')
 parser.add_argument('-s', '--suffix', help='File suffix for recursive matching.',
                     action='append', default=config.get('suffix', '').split())
 
-parser.add_argument('-i', '--identify', help='Identify files.',
-                    action='store_true', default=False)
-parser.add_argument('-a', '--add', help='Add files to mylist.',
-                    action='store_true', default=False)
-parser.add_argument('-w', '--watched', help='Mark files watched.',
-                    action='store_true', default=False)
+parser.add_argument('-i', '--identify', help='Identify files.', action='store_true')
+parser.add_argument('-a', '--add', help='Add files to mylist.', action='store_true')
+parser.add_argument('-w', '--watched', help='Mark files watched.', action='store_true')
+parser.add_argument('--update-mylist', help='Re-download mylist into db.', action='store_true')
 
-parser.add_argument('-f', '--format', help='Filename format.',
-                    default=config.get('format'))
+parser.add_argument('-f', '--format', help='Filename format.', default=config.get('format'))
 
 parser.add_argument('--database-file', help='Database file location.',
                     default=config.get('database-file', 'userData/TsuboDB.db'))
 parser.add_argument('--anime-dir', help='Anime base dir for file scanning.',
                     default=config.get('anime-dir', '.'))
 
+parser.add_argument('--playnext', help='Play next episode then mark watched.', action='store_true')
 
-parser.add_argument('paths', metavar='Path', nargs='+',
-                    help='videos to process.')
+
+parser.add_argument('paths', metavar='Path', nargs='*', help='videos to process.')
 
 argcomplete.autocomplete(parser)
 args = parser.parse_args()
@@ -107,7 +103,7 @@ while remaining:
                 elif os.path.isdir(sub):
                     remaining.appendleft(sub)
 
-if not files:
+if not files and not args.playnext:
     print(blue('Nothing to do.'))
     sys.exit(0)
 
@@ -116,31 +112,44 @@ a = pyanidb.api.AniDB(args.username, args.password)
 db = pyanidb.localdb.LocalDB(args.database_file, args.anime_dir, a)
 
 try:
-    for file in db.get_files(files):
-        print(f'{blue("File:")} {file}')
+    if files:
+        for file in db.get_local_files(files):
+            print(f'{blue("File:")} {file}')
 
-        try:
-            # Identify.
-            if args.identify:
+            try:
+                # Identify.
                 info = db.get_file(file)
-                if info:
-                    print(f'{green("Identified:")} {info.aname_k} - {info.epno} - {info.epname_k}')
+                if not info:
+                    print(f'{red("Unknown:")} {file}')
+                    continue
 
-            # Adding.
-            if args.add:
-                db.add_file(info.fid, viewed=args.watched, retry=True)
-                print(green('Added to mylist.'))
+                print(f'{green("Identified:")} {info.aname_k} - {info.epno} - {info.epname_k}')
 
-            # Watched.
-            elif args.watched:
-                db.mark_watched(info.fid)
-                print(green('Marked watched.'))
+                # Watched.
+                if args.watched:
+                    db.mark_watched(info.fid)
+                    print(green('Marked watched.'))
 
-        except pyanidb.types.AniDBUnknownFile:
-            print(red('Unknown file.'))
+                if args.update_mylist:
+                    db.update_mylist(info.fid)
 
-        except pyanidb.types.AniDBNotInMylist:
-            print(red('File not in mylist.'))
+            except pyanidb.types.AniDBUnknownFile:
+                print(red('Unknown file.'))
+
+            except pyanidb.types.AniDBNotInMylist:
+                print(red('File not in mylist.'))
+
+    if args.playnext:
+        local = db.get_playnext_file()
+        if local:
+            rel = os.path.relpath(db.base_anime_folder, os.getcwd())
+            rel = os.path.join(rel, local.path)
+            subprocess.run(['mpv', rel])
+            input('Mark watched? (ctrl-c to cancel)')
+            db.mark_watched(local.fid)
+            db.increment_playnext()
+
+
 except pyanidb.types.AniDBUserError:
     print(red('Invalid username/password.'))
     sys.exit(1)
