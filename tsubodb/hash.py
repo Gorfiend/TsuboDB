@@ -4,7 +4,7 @@ import os
 import hashlib
 import binascii
 
-from pyanidb.types import *
+from tsubodb.types import *
 from typing import Iterable, List
 
 

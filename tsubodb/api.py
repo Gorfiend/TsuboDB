@@ -1,7 +1,7 @@
 import socket
 import time
 
-from pyanidb.types import *
+from tsubodb.types import *
 
 protover = 3
 client = 'tsubodb'

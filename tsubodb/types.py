@@ -52,6 +52,17 @@ class MyList:
         self.viewdate = viewdate
         self.watched = viewdate > 0
 
+
+class PlaynextFile():
+    def __init__(self, path: str, aname_k: str, epno: str):
+        self.path = path
+        self.aname_k = aname_k
+        self.epno = epno
+
+    def __str__(self):
+        return f'{self.aname_k} {self.epno}'
+
+
 #AniDB exceptions
 
 class AniDBError(Exception):

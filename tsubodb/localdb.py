@@ -2,11 +2,11 @@
 import sqlite3
 import os
 
-from pyanidb.api import AniDB
-from pyanidb.hash import hash_files
-from pyanidb.types import *
+from tsubodb.api import AniDB
+from tsubodb.hash import hash_files
+from tsubodb.types import *
 
-from typing import Iterable, Optional
+from typing import Dict, Iterable, List, Tuple, Optional
 
 
 class LocalDB:
@@ -52,8 +52,8 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?)
         self.conn.execute(
 '''
 UPDATE LocalFiles
-SET Checked = 1, Fid = ?
-WHERE Path LIKE ?
+SET checked = 1, fid = ?
+WHERE path LIKE ?
 ''', [local.fid, local.path])
 
         if not local.fid:
@@ -61,7 +61,7 @@ WHERE Path LIKE ?
 
         self.conn.execute(
 '''
-INSERT INTO Files
+INSERT OR REPLACE INTO Files
 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ''', [local.fid, Eid(info['eid']), Aid(info['aid']), info['english'], info['romaji'], info['kanji'],
         info['epno'], info['epname'], info['epromaji'], info['epkanji']])
@@ -96,7 +96,7 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             mylist = LocalDB._mylist_from_anidb(data)
             self._insert_mylist(mylist)
 
-    def update_mylist(self, fid: Fid) -> None:
+    def fetch_mylist(self, fid: Fid) -> None:
         mylist = self._get_mylist_db(fid)
         if (mylist):
             data = self.anidb.get_mylist_lid(mylist.lid)
@@ -105,17 +105,37 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         mylist = LocalDB._mylist_from_anidb(data)
         self._insert_mylist(mylist)
 
+    def fill_files(self) -> None:
+        c = self.conn.cursor()
+        for row in c.execute('''
+SELECT LocalFiles.*
+FROM LocalFiles
+LEFT JOIN Files USING(fid)
+WHERE Files.fid IS NULL AND checked == 0'''):
+            self.get_file(LocalFileInfo(*row))
+        c.close()
+
+    def fill_mylist(self):
+        rows = self.conn.execute('''
+SELECT fid
+FROM Files
+LEFT JOIN MyList USING(fid)
+WHERE Mylist.date IS NULL''').fetchall()
+        for r in rows:
+            self.get_mylist(Fid(r[0]))
+
+
     def get_local_files(self, files: Iterable[str]) -> Iterable[LocalFileInfo]:
         c = self.conn.cursor()
         unhashed = list()
         for f in files:
-            rel = os.path.realpath(f)
-            rel = os.path.relpath(rel, self.base_anime_folder)
-            row = c.execute('SELECT * from LocalFiles WHERE Path LIKE ?', [rel]).fetchone()
+            real = os.path.realpath(f)
+            rel = os.path.relpath(real, self.base_anime_folder)
+            row = c.execute('SELECT * from LocalFiles WHERE path LIKE ?', [rel]).fetchone()
             if row:
                 yield LocalFileInfo(*row)
             else:
-                unhashed.append(f)
+                unhashed.append(real)
 
         hashed_files = hash_files(unhashed)
         for h in hashed_files:
@@ -124,18 +144,17 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             c.execute('INSERT OR REPLACE INTO LocalFiles VALUES(?, ?, ?, 0, 0)', [fi.path, fi.size, fi.ed2k])
             yield fi
 
-    def get_playnext_file(self) -> Optional[LocalFileInfo]:
+    def get_playnext_file(self) -> Optional[PlaynextFile]:
         # TODO might want to support multiple series...?
-        row = self.conn.execute('SELECT * from PlayNext').fetchone()
+        row = self.conn.execute('''
+SELECT path, aname_k, epno FROM PlayNext
+LEFT JOIN Files USING(aid, epno)
+LEFT JOIN LocalFiles USING(fid)''').fetchone()
         if row:
-            # Could probably turn this into a single query...
-            file = self.conn.execute('SELECT * from Files WHERE aid == ? AND epno == ?', [row[0], row[1]]).fetchone()
-            local = LocalFileInfo(*self.conn.execute('SELECT * from LocalFiles WHERE Fid == ?', [file[0]]).fetchone())
+            return PlaynextFile(*row)
         else:
             # TODO do some stuff to find unwatched series, and provide a menu to select the next one to watch
-            pass
-
-        return local
+            return None
 
     def increment_playnext(self) -> None:
         row = self.conn.execute('SELECT * from PlayNext').fetchone()
@@ -151,3 +170,36 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             self.conn.execute('UPDATE PlayNext SET epno = ? WHERE aid == ? AND epno LIKE ?', [epno, row[0], row[1]])
         else:
             self.conn.execute('DELETE FROM PlayNext WHERE aid == ? AND epno LIKE ?', [row[0], epno])
+
+    def get_potential_playnext(self) -> Iterable[PlaynextFile]:
+        rows = self.conn.execute('''
+SELECT path, aname_k, epno, Files.aid
+FROM Files
+LEFT JOIN MyList USING(fid)
+LEFT JOIN LocalFiles USING(fid)
+WHERE viewdate = 0''')
+
+        files: Dict[str, List[PlaynextFile]] = dict() 
+        for row in rows:
+            epcode, epnum = epinfo(row[2])
+            # 1: regular episode (no prefix), 2: special ("S"), 3: credit ("C"), 4: trailer ("T"), 5: parody ("P"), 6: other ("O")
+            if epcode in ('C', 'T'):
+                continue
+            playnext = PlaynextFile(row[0], row[1], row[2])
+            files.setdefault(str(row[3]) + '-' + epcode, list()).append(playnext)
+        candidates: List[PlaynextFile] = list()
+        for k in files.keys():
+            l = files[k]
+            l.sort(key=lambda x: x.epno)
+            candidates.append(l[0])
+        return candidates
+
+
+def epinfo(epno: str) -> Tuple[str, int]:
+    try:
+        code = ''
+        epnum = int(epno)
+    except ValueError:
+        code = epno[0]
+        epnum = int(epno[1:])
+    return code, epnum
