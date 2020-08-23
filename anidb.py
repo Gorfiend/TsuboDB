@@ -57,19 +57,16 @@ def main():
                         default=config.get('anime-dir', '.'))
 
     parser.add_argument('--playnext', help='Play next episode then mark watched.', action='store_true')
-    
-    parser.add_argument('--fill-database', help='Fill any missing files or Mylists', action='store_true')
-    parser.add_argument('--fill-mylist', help='Get MyList for all files.', action='store_true')
 
+    parser.add_argument('--fill-database', help='Fill any missing files or Mylists', action='store_true')
+    parser.add_argument('--fill-mylist', help='Get/Add MyList for all files.', action='store_true')
 
     parser.add_argument('paths', metavar='Path', nargs='*', help='videos to process.')
 
     argcomplete.autocomplete(parser)
     args = parser.parse_args()
 
-
     os.chdir(args.anime_dir)
-
 
     # Defaults.
 
@@ -106,9 +103,8 @@ def main():
                     elif os.path.isdir(sub):
                         remaining.appendleft(sub)
 
-
-    a = tsubodb.api.AniDB(args.username, args.password)
-    db = tsubodb.localdb.LocalDB(args.database_file, args.anime_dir, a)
+    anidb = tsubodb.api.AniDB(args.username, args.password)
+    db = tsubodb.localdb.LocalDB(args.database_file, args.anime_dir, anidb)
 
     try:
         if files:
@@ -146,28 +142,30 @@ def main():
             db.fill_mylist()
 
         if args.playnext:
-            playnext = db.get_playnext_file()
-            if not playnext:
-                candidates = db.get_potential_playnext()
-                for i, c in enumerate(candidates):
-                    print(i, c.aname_k, c.epno)
-                while True:
-                    choice = input('Select next series to watch:')
-                    try:
-                        playnext = candidates[int(choice)]
+            while True:
+                playnext = db.get_playnext_file()
+                if not playnext:
+                    candidates = db.get_potential_playnext()
+                    for i, c in enumerate(candidates):
+                        print(i, c.aname_k, c.epno)
+                    while True:
+                        choice = input('Select next series to watch:')
+                        try:
+                            playnext = candidates[int(choice)]
+                            break
+                        except (ValueError, IndexError):
+                            print('Invalid choice! (ctrl-c to cancel)')
+                if playnext:
+                    rel = os.path.relpath(db.base_anime_folder, os.getcwd())
+                    rel = os.path.join(rel, playnext.path)
+                    print(rel)
+                    print(os.getcwd())
+                    subprocess.run(['mpv', rel])
+                    text = input("Hit enter to mark watched and exit, type something to continue watching, ctrl-c to exit now (don't mark watched): ")
+                    db.mark_watched(playnext)
+                    db.increment_playnext()
+                    if not text:
                         break
-                    except (ValueError, IndexError):
-                        print('Invalid choice! (ctrl-c to cancel)')
-            if playnext:
-                rel = os.path.relpath(db.base_anime_folder, os.getcwd())
-                rel = os.path.join(rel, playnext.path)
-                print(rel)
-                print(os.getcwd())
-                subprocess.run(['mpv', rel])
-                input('Mark watched? (ctrl-c to cancel)')
-                db.mark_watched(playnext.fid)
-                db.increment_playnext()
-
 
     except tsubodb.types.AniDBUserError:
         print(red('Invalid username/password.'))

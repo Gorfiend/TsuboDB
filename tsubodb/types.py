@@ -54,7 +54,8 @@ class MyList:
 
 
 class PlaynextFile():
-    def __init__(self, path: str, aname_k: str, epno: str):
+    def __init__(self, fid: Fid, path: str, aname_k: str, epno: str):
+        self.fid = fid
         self.path = path
         self.aname_k = aname_k
         self.epno = epno
@@ -63,7 +64,7 @@ class PlaynextFile():
         return f'{self.aname_k} {self.epno}'
 
 
-#AniDB exceptions
+# AniDB exceptions
 
 class AniDBError(Exception):
     pass

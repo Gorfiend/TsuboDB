@@ -6,7 +6,7 @@ from tsubodb.api import AniDB
 from tsubodb.hash import hash_files
 from tsubodb.types import *
 
-from typing import Dict, Iterable, List, Tuple, Optional
+from typing import Dict, Iterable, List, Tuple, Optional, Union
 
 
 class LocalDB:
@@ -31,8 +31,14 @@ INSERT OR REPLACE INTO MyList
 VALUES(?, ?, ?, ?, ?, ?, ?, ?)
 ''', [mylist.lid, mylist.fid, mylist.eid, mylist.aid, mylist.gid, mylist.date, mylist.state, mylist.viewdate])
 
+    def _get_local_file_db(self, path: str) -> Optional[LocalFileInfo]:
+        row = self.conn.execute('SELECT * from LocalFiles WHERE path LIKE ?', [path]).fetchone()
+        if row:
+            return LocalFileInfo(*row)
+        return None
+
     def _get_file_db(self, local: LocalFileInfo) -> Optional[FileInfo]:
-        row = self.conn.execute('SELECT * from Files WHERE Fid = ?', [local.fid]).fetchone()
+        row = self.conn.execute('SELECT * from Files WHERE fid = ?', [local.fid]).fetchone()
         if row:
             return FileInfo(local.path, local.size, local.ed2k, *row)
         return None
@@ -147,33 +153,41 @@ WHERE Mylist.date IS NULL''').fetchall()
     def get_playnext_file(self) -> Optional[PlaynextFile]:
         # TODO might want to support multiple series...?
         row = self.conn.execute('''
-SELECT path, aname_k, epno FROM PlayNext
+SELECT Files.fid, path, aname_k, epno FROM PlayNext
 LEFT JOIN Files USING(aid, epno)
 LEFT JOIN LocalFiles USING(fid)''').fetchone()
         if row:
             return PlaynextFile(*row)
         else:
-            # TODO do some stuff to find unwatched series, and provide a menu to select the next one to watch
             return None
 
-    def increment_playnext(self) -> None:
+    def increment_playnext(self) -> Optional[PlaynextFile]:
         row = self.conn.execute('SELECT * from PlayNext').fetchone()
+        aid = row[0]
+        old_epno = row[1]
         try:
             code = ''
-            epnum = int(row[1])
+            epnum = int(old_epno)
         except ValueError:
-            code = row[1][0]
-            epnum = int(row[1][1:])
+            code = old_epno[0]
+            epnum = int(old_epno[1:])
         epnum += 1
-        epno = f'{code}{epnum:0{2}}'
-        if self.conn.execute('SELECT * FROM Files WHERE aid == ? AND epno LIKE ?', [row[0], epno]).fetchone:
-            self.conn.execute('UPDATE PlayNext SET epno = ? WHERE aid == ? AND epno LIKE ?', [epno, row[0], row[1]])
+        new_epno = f'{code}{epnum:0{2}}'
+        nextInfo = self.conn.execute('''
+SELECT Files.fid, path, aname_k, epno
+FROM Files
+LEFT JOIN LocalFiles USING(fid)
+WHERE aid == ? AND epno LIKE ?''', [aid, new_epno]).fetchone()
+        if nextInfo:
+            self.conn.execute('UPDATE PlayNext SET epno = ? WHERE aid == ? AND epno LIKE ?', [new_epno, aid, old_epno])
+            return PlaynextFile(*nextInfo)
         else:
-            self.conn.execute('DELETE FROM PlayNext WHERE aid == ? AND epno LIKE ?', [row[0], epno])
+            self.conn.execute('DELETE FROM PlayNext WHERE aid == ? AND epno LIKE ?', [aid, old_epno])
+            return None
 
     def get_potential_playnext(self) -> Iterable[PlaynextFile]:
         rows = self.conn.execute('''
-SELECT path, aname_k, epno, Files.aid
+SELECT Files.fid, path, aname_k, epno, Files.aid
 FROM Files
 LEFT JOIN MyList USING(fid)
 LEFT JOIN LocalFiles USING(fid)
@@ -185,7 +199,7 @@ WHERE viewdate = 0''')
             # 1: regular episode (no prefix), 2: special ("S"), 3: credit ("C"), 4: trailer ("T"), 5: parody ("P"), 6: other ("O")
             if epcode in ('C', 'T'):
                 continue
-            playnext = PlaynextFile(row[0], row[1], row[2])
+            playnext = PlaynextFile(*row[0:4])
             files.setdefault(str(row[3]) + '-' + epcode, list()).append(playnext)
         candidates: List[PlaynextFile] = list()
         for k in files.keys():
