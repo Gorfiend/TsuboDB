@@ -5,8 +5,9 @@ import os
 from tsubodb.api import AniDB
 from tsubodb.hash import hash_files
 from tsubodb.types import *
+from tsubodb._query import _Query
 
-from typing import Dict, Iterable, List, Tuple, Optional, Union
+from typing import Dict, Iterable, Iterator, List, Tuple, Optional, Union
 
 
 class LocalDB:
@@ -14,6 +15,7 @@ class LocalDB:
         self.base_anime_folder = base_anime_folder
         self.conn = sqlite3.connect(db_file)
         self.anidb = anidb
+        self.query = _Query(self.conn)
 
     def __del__(self):
         # Maybe don't want this commit here...?
@@ -24,27 +26,8 @@ class LocalDB:
     def _mylist_from_anidb(data) -> MyList:
         return MyList(data[0], data[1], data[2], data[3], data[4], int(data[5]), int(data[6]), int(data[7]))
 
-    def _insert_mylist(self, mylist: MyList) -> None:
-        self.conn.execute(
-'''
-INSERT OR REPLACE INTO MyList
-VALUES(?, ?, ?, ?, ?, ?, ?, ?)
-''', [mylist.lid, mylist.fid, mylist.eid, mylist.aid, mylist.gid, mylist.date, mylist.state, mylist.viewdate])
-
-    def _get_local_file_db(self, path: str) -> Optional[LocalFileInfo]:
-        row = self.conn.execute('SELECT * from LocalFiles WHERE path LIKE ?', [path]).fetchone()
-        if row:
-            return LocalFileInfo(*row)
-        return None
-
-    def _get_file_db(self, local: LocalFileInfo) -> Optional[FileInfo]:
-        row = self.conn.execute('SELECT * from Files WHERE fid = ?', [local.fid]).fetchone()
-        if row:
-            return FileInfo(local.path, local.size, local.ed2k, *row)
-        return None
-
     def get_file(self, local: LocalFileInfo) -> Optional[FileInfo]:
-        file = self._get_file_db(local)
+        file = self.query.get_file_from_local(local)
         if file or local.checked:
             return file
 
@@ -55,35 +38,19 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?)
         except AniDBUnknownFile:
             local.checked = True
 
-        self.conn.execute(
-'''
-UPDATE LocalFiles
-SET checked = 1, fid = ?
-WHERE path LIKE ?
-''', [local.fid, local.path])
+        self.query.update_local_checked(local)
 
         if not local.fid:
             return None
 
-        self.conn.execute(
-'''
-INSERT OR REPLACE INTO Files
-VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-''', [local.fid, Eid(info['eid']), Aid(info['aid']), info['english'], info['romaji'], info['kanji'],
-        info['epno'], info['epname'], info['epromaji'], info['epkanji']])
+        self.query.insert_file_from_anidb(info)
 
         self.get_mylist(local.fid)  # Will add mylist if needed
 
-        return self._get_file_db(local)
-
-    def _get_mylist_db(self, fid: Fid) -> Optional[MyList]:
-        row = self.conn.execute('SELECT * from MyList WHERE fid = ?', [fid]).fetchone()
-        if row:
-            return MyList(*row)
-        return None
+        return self.query.get_file_from_local(local)
 
     def get_mylist(self, fid: Fid, viewed=False) -> Optional[MyList]:
-        mylist = self._get_mylist_db(fid)
+        mylist = self.query.get_mylist_from_fid(fid)
         if (mylist):
             return mylist
         code, data = self.anidb.add_file(fid, storage=1, viewed=viewed)
@@ -91,7 +58,7 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             lid = Lid(data[0])
             data = self.anidb.get_mylist_lid(lid)
         mylist = LocalDB._mylist_from_anidb(data)
-        self._insert_mylist(mylist)
+        self.query.insert_mylist(mylist)
         return mylist
 
     def mark_watched(self, fid: Fid) -> None:
@@ -100,36 +67,24 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             self.anidb.mark_watched(mylist.lid)
             data = self.anidb.get_mylist_lid(mylist.lid)
             mylist = LocalDB._mylist_from_anidb(data)
-            self._insert_mylist(mylist)
+            self.query.insert_mylist(mylist)
 
     def fetch_mylist(self, fid: Fid) -> None:
-        mylist = self._get_mylist_db(fid)
+        mylist = self.query.get_mylist_from_fid(fid)
         if (mylist):
             data = self.anidb.get_mylist_lid(mylist.lid)
         else:
             data = self.anidb.get_mylist(fid)
         mylist = LocalDB._mylist_from_anidb(data)
-        self._insert_mylist(mylist)
+        self.query.insert_mylist(mylist)
 
     def fill_files(self) -> None:
-        c = self.conn.cursor()
-        for row in c.execute('''
-SELECT LocalFiles.*
-FROM LocalFiles
-LEFT JOIN Files USING(fid)
-WHERE Files.fid IS NULL AND checked == 0'''):
-            self.get_file(LocalFileInfo(*row))
-        c.close()
+        for local in self.query.get_unchecked_local_files():
+            self.get_file(local)
 
-    def fill_mylist(self):
-        rows = self.conn.execute('''
-SELECT fid
-FROM Files
-LEFT JOIN MyList USING(fid)
-WHERE Mylist.date IS NULL''').fetchall()
-        for r in rows:
-            self.get_mylist(Fid(r[0]))
-
+    def fill_mylist(self) -> None:
+        for fid in self.query.get_fids_not_in_mylist():
+            self.get_mylist(fid)
 
     def get_local_files(self, files: Iterable[str]) -> Iterable[LocalFileInfo]:
         c = self.conn.cursor()
@@ -137,83 +92,38 @@ WHERE Mylist.date IS NULL''').fetchall()
         for f in files:
             real = os.path.realpath(f)
             rel = os.path.relpath(real, self.base_anime_folder)
-            row = c.execute('SELECT * from LocalFiles WHERE path LIKE ?', [rel]).fetchone()
-            if row:
-                yield LocalFileInfo(*row)
+            local = self.query.get_local_file_from_path(rel)
+            if local:
+                yield local
             else:
                 unhashed.append(real)
 
         hashed_files = hash_files(unhashed)
         for h in hashed_files:
-            fi = LocalFileInfo(os.path.relpath(h.name, self.base_anime_folder), h.size, h.ed2k, Fid(0), False)
-            # Need the replace in case the file got deleted previously
-            c.execute('INSERT OR REPLACE INTO LocalFiles VALUES(?, ?, ?, 0, 0)', [fi.path, fi.size, fi.ed2k])
-            yield fi
+            local = LocalFileInfo(os.path.relpath(h.name, self.base_anime_folder), h.size, h.ed2k)
+            self.query.insert_local_file(local.path, local.size, local.ed2k)
+            yield local
 
     def get_playnext_file(self) -> Optional[PlaynextFile]:
         # TODO might want to support multiple series...?
-        row = self.conn.execute('''
-SELECT Files.fid, path, aname_k, epno FROM PlayNext
-LEFT JOIN Files USING(aid, epno)
-LEFT JOIN LocalFiles USING(fid)''').fetchone()
-        if row:
-            return PlaynextFile(*row)
-        else:
-            return None
+        return self.query.get_playnext_file()
 
-    def increment_playnext(self) -> Optional[PlaynextFile]:
-        row = self.conn.execute('SELECT * from PlayNext').fetchone()
-        aid = row[0]
-        old_epno = row[1]
+    def increment_playnext(self, playnext: PlaynextFile) -> Optional[PlaynextFile]:
         try:
             code = ''
-            epnum = int(old_epno)
+            epnum = int(playnext.epno)
         except ValueError:
-            code = old_epno[0]
-            epnum = int(old_epno[1:])
+            code = playnext.epno[0]
+            epnum = int(playnext.epno[1:])
         epnum += 1
         new_epno = f'{code}{epnum:0{2}}'
-        nextInfo = self.conn.execute('''
-SELECT Files.fid, path, aname_k, epno
-FROM Files
-LEFT JOIN LocalFiles USING(fid)
-WHERE aid == ? AND epno LIKE ?''', [aid, new_epno]).fetchone()
+        nextInfo = self.query.get_playnext_for_episode(playnext.aid, new_epno)
         if nextInfo:
-            self.conn.execute('UPDATE PlayNext SET epno = ? WHERE aid == ? AND epno LIKE ?', [new_epno, aid, old_epno])
-            return PlaynextFile(*nextInfo)
+            self.query.update_playnext(playnext, new_epno)
+            return nextInfo
         else:
-            self.conn.execute('DELETE FROM PlayNext WHERE aid == ? AND epno LIKE ?', [aid, old_epno])
+            self.query.delete_playnext(playnext)
             return None
 
-    def get_potential_playnext(self) -> Iterable[PlaynextFile]:
-        rows = self.conn.execute('''
-SELECT Files.fid, path, aname_k, epno, Files.aid
-FROM Files
-LEFT JOIN MyList USING(fid)
-LEFT JOIN LocalFiles USING(fid)
-WHERE viewdate = 0''')
-
-        files: Dict[str, List[PlaynextFile]] = dict() 
-        for row in rows:
-            epcode, epnum = epinfo(row[2])
-            # 1: regular episode (no prefix), 2: special ("S"), 3: credit ("C"), 4: trailer ("T"), 5: parody ("P"), 6: other ("O")
-            if epcode in ('C', 'T'):
-                continue
-            playnext = PlaynextFile(*row[0:4])
-            files.setdefault(str(row[3]) + '-' + epcode, list()).append(playnext)
-        candidates: List[PlaynextFile] = list()
-        for k in files.keys():
-            l = files[k]
-            l.sort(key=lambda x: x.epno)
-            candidates.append(l[0])
-        return candidates
-
-
-def epinfo(epno: str) -> Tuple[str, int]:
-    try:
-        code = ''
-        epnum = int(epno)
-    except ValueError:
-        code = epno[0]
-        epnum = int(epno[1:])
-    return code, epnum
+    def get_potential_playnext(self) -> Iterator[PlaynextFile]:
+        return self.query.get_potential_playnext()

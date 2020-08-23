@@ -9,7 +9,7 @@ Gid = typing.NewType('Gid', int)  # AniDB group ID
 HashStr = typing.NewType('HashStr', str)
 
 class LocalFileInfo:
-    def __init__(self, path: str, size: int, ed2k: HashStr, fid: Fid, checked: bool):
+    def __init__(self, path: str, size: int, ed2k: HashStr, fid: Fid = Fid(0), checked: bool = False):
         self.path = path
         self.size = size
         self.ed2k = ed2k
@@ -54,7 +54,8 @@ class MyList:
 
 
 class PlaynextFile():
-    def __init__(self, fid: Fid, path: str, aname_k: str, epno: str):
+    def __init__(self, aid: Aid, fid: Fid, path: str, aname_k: str, epno: str):
+        self.aid = aid
         self.fid = fid
         self.path = path
         self.aname_k = aname_k

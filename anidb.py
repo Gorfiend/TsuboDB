@@ -163,7 +163,7 @@ def main():
                     subprocess.run(['mpv', rel])
                     text = input("Hit enter to mark watched and exit, type something to continue watching, ctrl-c to exit now (don't mark watched): ")
                     db.mark_watched(playnext)
-                    db.increment_playnext()
+                    db.increment_playnext(playnext)
                     if not text:
                         break
 
