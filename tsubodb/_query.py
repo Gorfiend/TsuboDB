@@ -89,8 +89,8 @@ WHERE aid == ? AND epno LIKE ?''', [aid, epno]).fetchone()
             return PlaynextFile(*row)
         return None
 
-    def update_playnext(self, playnext: PlaynextFile, new_epno: str):
-        self.conn.execute('UPDATE PlayNext SET epno = ? WHERE aid == ? AND epno LIKE ?', [new_epno, playnext.aid, playnext.epno])
+    def insert_playnext(self, aid: Aid, epno: str):
+        self.conn.execute('INSERT INTO PlayNext VALUES(?, ?)', [aid, epno])
 
     def delete_playnext(self, playnext: PlaynextFile):
         self.conn.execute('DELETE FROM PlayNext WHERE aid == ? AND epno LIKE ?', [playnext.aid, playnext.epno])
@@ -103,23 +103,20 @@ WHERE aid == ? AND epno LIKE ?''', [aid, epno]).fetchone()
         """
         c = self.conn.cursor()
         for row in c.execute('''
-SELECT sub.*, PlayNext.aid AS pnaid, PlayNext.epno AS pnepno
-FROM (
-    SELECT Files.aid, Files.fid, path, aname_k, epno, 
-        CASE
-            WHEN epno GLOB '[A-Z]*' THEN
-                substr(epno, 1, 1)
-            ELSE
-                ''
-            END epcode
-    FROM Files
-    LEFT JOIN MyList USING(fid)
-    LEFT JOIN LocalFiles USING(fid)
-    WHERE viewdate = 0 AND epcode NOT LIKE "C" AND epcode NOT LIKE "T"
-    ORDER BY Files.aid, epno
-) AS sub
-LEFT JOIN PlayNext
-WHERE sub.aid != pnaid AND sub.epno != pnepno
-GROUP BY sub.aid, epcode'''):
-            yield PlaynextFile(*row[:4])
+SELECT Files.aid, Files.fid, path, aname_k, MIN(epno) AS epno, PlayNext.aid AS pnaid, PlayNext.epno AS pnepno,
+    CASE
+        WHEN epno GLOB '[A-Z]*' THEN
+            substr(epno, 1, 1)
+        ELSE
+            ''
+        END epcode
+FROM Files
+LEFT JOIN MyList USING(fid)
+LEFT JOIN LocalFiles USING(fid)
+LEFT JOIN PlayNext USING(aid, epno)
+WHERE viewdate = 0 AND epcode NOT LIKE "C" AND epcode NOT LIKE "T" AND
+    (pnaid IS NULL OR Files.aid != pnaid) AND (pnepno IS NULL OR epno != pnepno)
+GROUP BY Files.aid, epcode
+ORDER BY Files.aid ASC'''):
+            yield PlaynextFile(*row[:5])
         c.close()

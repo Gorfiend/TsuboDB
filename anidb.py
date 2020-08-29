@@ -145,24 +145,24 @@ def main():
             while True:
                 playnext = db.get_playnext_file()
                 if not playnext:
-                    candidates = db.get_potential_playnext()
+                    candidates = list(db.get_potential_playnext())
                     for i, c in enumerate(candidates):
                         print(i, c.aname_k, c.epno)
                     while True:
-                        choice = input('Select next series to watch:')
+                        choice = input('Select next series to watch: ')
                         try:
                             playnext = candidates[int(choice)]
                             break
                         except (ValueError, IndexError):
                             print('Invalid choice! (ctrl-c to cancel)')
+                        except KeyboardInterrupt:
+                            return
                 if playnext:
                     rel = os.path.relpath(db.base_anime_folder, os.getcwd())
                     rel = os.path.join(rel, playnext.path)
-                    print(rel)
-                    print(os.getcwd())
                     subprocess.run(['mpv', rel])
                     text = input("Hit enter to mark watched and exit, type something to continue watching, ctrl-c to exit now (don't mark watched): ")
-                    db.mark_watched(playnext)
+                    db.mark_watched(playnext.fid)
                     db.increment_playnext(playnext)
                     if not text:
                         break
@@ -176,8 +176,6 @@ def main():
     except tsubodb.types.AniDBError as e:
         print('{0} {1}'.format(red('Fatal error:'), e))
         sys.exit(1)
-    except KeyboardInterrupt:
-        sys.exit(0)
 
 
 if __name__ == '__main__':
