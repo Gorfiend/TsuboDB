@@ -163,7 +163,22 @@ def main():
                     subprocess.run(['mpv', rel])
                     text = input("Hit enter to mark watched and exit, type something to continue watching, ctrl-c to exit now (don't mark watched): ")
                     db.mark_watched(playnext.fid)
-                    db.increment_playnext(playnext)
+                    next_episode = db.increment_playnext(playnext)
+                    if not next_episode:
+                        try:
+                            int(playnext.epno)
+                            while True:
+                                try:
+                                    vote = input("Enter rating (1-10), or enter to skip: ")
+                                    voteNum = float(vote)
+                                    if vote:
+                                        anidb.rate_anime(playnext.aid, rating=voteNum)
+                                    break
+                                except ValueError:
+                                    print("Invalid input!")
+                                    pass
+                        except ValueError:
+                            pass  # Don't rate special episodes
                     if not text:
                         break
 

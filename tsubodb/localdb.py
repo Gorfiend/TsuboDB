@@ -118,12 +118,11 @@ class LocalDB:
         epnum += 1
         new_epno = f'{code}{epnum:0{2}}'
         nextInfo = self.query.get_playnext_for_episode(playnext.aid, new_epno)
+        self.query.delete_playnext(playnext)
         if nextInfo:
-            self.query.delete_playnext(playnext)
-            self.query.insert_playnext(playnext.aid, new_epno)
+            self.query.insert_playnext(nextInfo.aid, nextInfo.epno)
             return nextInfo
         else:
-            self.query.delete_playnext(playnext)
             return None
 
     def get_potential_playnext(self) -> Iterator[PlaynextFile]:

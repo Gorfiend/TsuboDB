@@ -206,6 +206,25 @@ class AniDB:
             else:
                 raise AniDBReplyError(code, text)
 
+    def rate_anime(self, aid: Aid, rating: float, retry=False):
+        '''
+        Vote for an anime identified by aid. rating is a number between 1 and 10
+        '''
+        # VOTE type={int2 type}&id={int4 id}[&value={int4 vote value}&epno={int4 episode number}]
+        args: dict = dict()
+        args['aid'] = aid
+        args['type'] = 1
+        args['value'] = int(rating * 100)
+
+        while 1:
+            code, text, data = self.execute('VOTE', args, retry)
+            if code in (260, 262):
+                return data[0]
+            elif code in (501, 506):
+                self.auth()
+            else:
+                raise AniDBReplyError(code, text)
+
     def get_anime(self, aid=None, aname=None, amask=None, retry=False):
         args = {}
         if not aid == None:
