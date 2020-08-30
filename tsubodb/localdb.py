@@ -65,9 +65,7 @@ class LocalDB:
         mylist = self.get_mylist(fid, viewed=True)
         if mylist and not mylist.watched:
             self.anidb.mark_watched(mylist.lid)
-            data = self.anidb.get_mylist_lid(mylist.lid)
-            mylist = LocalDB._mylist_from_anidb(data)
-            self.query.insert_mylist(mylist)
+            self.query.mylist_mark_watched(mylist)
 
     def fetch_mylist(self, fid: Fid) -> None:
         mylist = self.query.get_mylist_from_fid(fid)

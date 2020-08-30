@@ -1,4 +1,5 @@
 
+import time
 import sqlite3
 
 from tsubodb.types import *
@@ -26,6 +27,10 @@ VALUES(:fid, :eid, :aid, :english, :romaji, :kanji, :epno, :epname, :epromaji, :
 INSERT OR REPLACE INTO MyList
 VALUES(:lid, :fid, :eid, :aid, :gid, :date, :state, :viewdate)
 ''', mylist.__dict__)
+
+    def mylist_mark_watched(self, mylist: MyList) -> None:
+        timestamp = int(time.time())
+        self.conn.execute('UPDATE Mylist SET viewdate = ? WHERE lid = ?', [timestamp, mylist.lid])
 
     def get_local_file_from_path(self, path: str) -> Optional[LocalFileInfo]:
         row = self.conn.execute('SELECT * from LocalFiles WHERE path LIKE ?', [path]).fetchone()
