@@ -76,7 +76,7 @@ WHERE Mylist.date IS NULL'''):
 
     def get_playnext_file(self) -> Optional[PlaynextFile]:
         row = self.conn.execute('''
-SELECT Files.aid, Files.fid, path, aname_k, epno
+SELECT Files.aid, Files.fid, path, aname_k, epname_k, epno
 FROM PlayNext
 LEFT JOIN Files USING(aid, epno)
 LEFT JOIN LocalFiles USING(fid)''').fetchone()
@@ -86,7 +86,7 @@ LEFT JOIN LocalFiles USING(fid)''').fetchone()
 
     def get_playnext_for_episode(self, aid: Aid, epno: str) -> Optional[PlaynextFile]:
         row = self.conn.execute('''
-SELECT Files.aid, Files.fid, path, aname_k, epno
+SELECT Files.aid, Files.fid, path, aname_k, epname_k, epno
 FROM Files
 LEFT JOIN LocalFiles USING(fid)
 WHERE aid == ? AND epno LIKE ?''', [aid, epno]).fetchone()
@@ -105,23 +105,30 @@ WHERE aid == ? AND epno LIKE ?''', [aid, epno]).fetchone()
         Find series (defined by unique aid+epno code) that have not been watched
         Return the earliest epno for each of those
         Ignoring C and T code (credits/trailers)
+        Also ignore entries that are already in the playnext table
         """
         c = self.conn.cursor()
         for row in c.execute('''
-SELECT Files.aid, Files.fid, path, aname_k, MIN(epno) AS epno, PlayNext.aid AS pnaid, PlayNext.epno AS pnepno,
-    CASE
-        WHEN epno GLOB '[A-Z]*' THEN
-            substr(epno, 1, 1)
-        ELSE
-            ''
-        END epcode
+SELECT Files.aid, Files.fid, path, aname_k, epname_k, epno, PlayNext.aid AS pnaid, PlayNext.epno AS pnepno
 FROM Files
 LEFT JOIN MyList USING(fid)
 LEFT JOIN LocalFiles USING(fid)
 LEFT JOIN PlayNext USING(aid, epno)
-WHERE viewdate = 0 AND epcode NOT LIKE "C" AND epcode NOT LIKE "T" AND
-    (pnaid IS NULL OR Files.aid != pnaid) AND (pnepno IS NULL OR epno != pnepno)
-GROUP BY Files.aid, epcode
-ORDER BY Files.aid ASC'''):
-            yield PlaynextFile(*row[:5])
+INNER JOIN
+    (
+        SELECT Files.aid, MIN(epno) as epnomin,
+            CASE
+                WHEN epno GLOB '[A-Z]*' THEN
+                    substr(epno, 1, 1)
+                ELSE
+                    ''
+                END epcode
+        FROM Files
+        LEFT JOIN MyList USING(fid)
+        WHERE viewdate = 0 AND epcode NOT LIKE "C" AND epcode NOT LIKE "T"
+        GROUP BY Files.aid, epcode
+    ) AS SQ ON SQ.aid = Files.aid AND SQ.epnomin = epno
+WHERE (pnaid IS NULL OR Files.aid != pnaid) AND (pnepno IS NULL OR epno != pnepno)
+ORDER BY Files.aid ASC, epno ASC'''):
+            yield PlaynextFile(*row[:6])
         c.close()

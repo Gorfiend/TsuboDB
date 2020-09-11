@@ -212,7 +212,7 @@ class AniDB:
         '''
         # VOTE type={int2 type}&id={int4 id}[&value={int4 vote value}&epno={int4 episode number}]
         args: dict = dict()
-        args['aid'] = aid
+        args['id'] = aid
         args['type'] = 1
         args['value'] = int(rating * 100)
 
@@ -267,3 +267,26 @@ class AniDB:
                 self.auth()
             else:
                 raise AniDBReplyError(code, text)
+
+    def remove_wishlist(self, aid: Aid, retry=False):
+        args = {'aid': aid}
+        while 1:
+            code, text, data = self.execute('WISHLISTDEL', args, retry)
+            if code == 227:
+                return
+            if code == 323:
+                raise AniDBNoWishlist()
+            elif code == 330:
+                raise AniDBUnknownAnime()
+            elif code in (501, 506):
+                self.auth()
+            else:
+                raise AniDBReplyError(code, text)
+
+    def send_raw(self, command: str, info: dict, retry=False):
+        while 1:
+            code, text, data = self.execute(command, info, retry)
+            if code in (501, 506):
+                self.auth()
+            else:
+                return (code, text, data)

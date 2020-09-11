@@ -54,15 +54,16 @@ class MyList:
 
 
 class PlaynextFile():
-    def __init__(self, aid: Aid, fid: Fid, path: str, aname_k: str, epno: str):
+    def __init__(self, aid: Aid, fid: Fid, path: str, aname_k: str, epname_k: str, epno: str):
         self.aid = aid
         self.fid = fid
         self.path = path
         self.aname_k = aname_k
+        self.epname_k = epname_k
         self.epno = epno
 
     def __str__(self):
-        return f'{self.aname_k} {self.epno}'
+        return f'{self.aname_k} - {self.epno} - {self.epname_k}'
 
 
 # AniDB exceptions
@@ -100,4 +101,8 @@ class AniDBUnknownAnime(AniDBError):
 
 
 class AniDBUnknownDescription(AniDBError):
+    pass
+
+
+class AniDBNoWishlist(AniDBError):
     pass

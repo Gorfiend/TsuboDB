@@ -5,6 +5,7 @@ import tsubodb
 import tsubodb.api
 import tsubodb.hash
 import tsubodb.localdb
+from tsubodb.types import *
 
 import argcomplete
 import argparse
@@ -60,6 +61,8 @@ def main():
 
     parser.add_argument('--fill-database', help='Fill any missing files or Mylists', action='store_true')
     parser.add_argument('--fill-mylist', help='Get/Add MyList for all files.', action='store_true')
+
+    parser.add_argument('--vote', help='Rate an anime by aid.')
 
     parser.add_argument('paths', metavar='Path', nargs='*', help='videos to process.')
 
@@ -141,6 +144,13 @@ def main():
         if args.fill_mylist:
             db.fill_mylist()
 
+        if args.vote:
+            aid = Aid(int(args.vote))
+            rating = input("Enter rating (1-10), or enter to skip: ")
+            voteNum = float(rating)
+            if rating:
+                anidb.rate_anime(aid, rating=voteNum)
+
         if args.playnext:
             while True:
                 playnext = db.get_playnext_file()
@@ -160,6 +170,7 @@ def main():
                 if playnext:
                     rel = os.path.relpath(db.base_anime_folder, os.getcwd())
                     rel = os.path.join(rel, playnext.path)
+                    print(f"Playing: {playnext}")
                     subprocess.run(['mpv', rel])
                     text = input("Hit enter to mark watched and exit, type something to continue watching, ctrl-c to exit now (don't mark watched): ")
                     db.mark_watched(playnext.fid)
@@ -173,10 +184,13 @@ def main():
                                     voteNum = float(vote)
                                     if vote:
                                         anidb.rate_anime(playnext.aid, rating=voteNum)
+                                        anidb.remove_wishlist(playnext.aid)
                                     break
                                 except ValueError:
                                     print("Invalid input!")
                                     pass
+                                except AniDBNoWishlist:
+                                    pass  # Removing it, so this is fine
                         except ValueError:
                             pass  # Don't rate special episodes
                     if not text:
