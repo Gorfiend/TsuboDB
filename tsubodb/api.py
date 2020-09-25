@@ -1,6 +1,8 @@
 import socket
 import time
 
+from typing import Callable
+
 from tsubodb.types import *
 
 protover = 3
@@ -36,7 +38,7 @@ joined_masks.reverse()
 masks = dict([(joined_masks[i], 1 << i) for i in range(len(joined_masks)) if joined_masks[i]])
 
 class AniDB:
-    def __init__(self, username: str, password: str, localport: int = 1234, server=('api.anidb.info', 9000)):
+    def __init__(self, username: Callable[[], str], password: Callable[[], str], localport: int = 1234, server=('api.anidb.info', 9000)):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(('0.0.0.0', localport))
         self.sock.settimeout(10)
@@ -99,7 +101,7 @@ class AniDB:
             return None
 
     def auth(self):
-        code, text, data = self.execute('AUTH', {'user': self.username, 'pass': self.password, 'protover': protover,
+        code, text, data = self.execute('AUTH', {'user': self.username(), 'pass': self.password(), 'protover': protover,
                                                  'client': client, 'clientver': clientver, 'enc': 'utf8'})
         if code in (200, 201):
             self.session = text.split(' ', 1)[0]

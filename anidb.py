@@ -47,8 +47,6 @@ def main():
     parser.add_argument('-s', '--suffix', help='File suffix for recursive matching.',
                         action='append', default=config.get('suffix', '').split())
 
-    parser.add_argument('-i', '--identify', help='Identify files.', action='store_true')
-    parser.add_argument('-a', '--add', help='Add files to mylist.', action='store_true')
     parser.add_argument('-w', '--watched', help='Mark files watched.', action='store_true')
     parser.add_argument('--fetch-mylist', help='Re-download mylist into db.', action='store_true')
 
@@ -71,17 +69,18 @@ def main():
 
     os.chdir(args.anime_dir)
 
-    # Defaults.
-
-    args.login = args.add or args.watched or args.identify
     if not args.suffix:
         args.suffix = ['avi', 'ogm', 'mkv', 'mp4']
 
-    if args.login:
+    def get_username() -> str:
         if not args.username:
             args.username = input('Username: ')
+        return args.username
+
+    def get_password() -> str:
         if not args.password:
             args.password = getpass.getpass()
+        return args.password
 
     # Input files.
 
@@ -106,7 +105,7 @@ def main():
                     elif os.path.isdir(sub):
                         remaining.appendleft(sub)
 
-    anidb = tsubodb.api.AniDB(args.username, args.password)
+    anidb = tsubodb.api.AniDB(get_username, get_password)
     db = tsubodb.localdb.LocalDB(args.database_file, args.anime_dir, anidb)
 
     try:
