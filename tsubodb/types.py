@@ -16,12 +16,13 @@ class LocalFileInfo:
         self.fid = fid
         self.checked = bool(checked)  # needed for making this from sqlite query - might be a better way
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.path}|size={self.size}|ed2k={self.ed2k}|{self.checked}'
 
 
 class FileInfo:
-    def __init__(self, path:str, size: int, ed2k: str, fid: Fid, eid: Eid, aid: Aid, aname_e, aname_r, aname_k, epno, epname_e, epname_r, epname_k):
+    def __init__(self, path:str, size: int, ed2k: str, fid: Fid, eid: Eid, aid: Aid,
+            aname_e: str, aname_r: str, aname_k: str, epno: str, epname_e: str, epname_r: str, epname_k: str):
         self.path = path
         self.size = size
         self.ed2k = ed2k
@@ -36,7 +37,7 @@ class FileInfo:
         self.epname_r = epname_r
         self.epname_k = epname_k
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.path}|size={self.size}|ed2k={self.ed2k}'
 
 
@@ -62,7 +63,7 @@ class PlaynextFile():
         self.epname_k = epname_k
         self.epno = epno
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.aname_k} - {self.epno} - {self.epname_k}'
 
 

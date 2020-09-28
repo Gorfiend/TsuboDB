@@ -20,12 +20,12 @@ from collections import deque
 from typing import Iterable, Optional
 
 # Colors.
-def red(x): return '\x1b[31m' + x + '\x1b[0m'
-def green(x): return '\x1b[32m' + x + '\x1b[0m'
-def yellow(x): return '\x1b[33m' + x + '\x1b[0m'
-def blue(x): return '\x1b[34m' + x + '\x1b[0m'
+def red(x: str) -> str: return '\x1b[31m' + x + '\x1b[0m'
+def green(x: str) -> str: return '\x1b[32m' + x + '\x1b[0m'
+def yellow(x: str) -> str: return '\x1b[33m' + x + '\x1b[0m'
+def blue(x: str) -> str: return '\x1b[34m' + x + '\x1b[0m'
 
-def main():
+def main() -> None:
     # Config.
     config = {}
     try:
@@ -75,12 +75,14 @@ def main():
     def get_username() -> str:
         if not args.username:
             args.username = input('Username: ')
-        return args.username
+        username: str = args.username
+        return username
 
     def get_password() -> str:
         if not args.password:
             args.password = getpass.getpass()
-        return args.password
+        password: str = args.password
+        return password
 
     # Input files.
 
@@ -145,55 +147,10 @@ def main():
 
         if args.vote:
             aid = Aid(int(args.vote))
-            rating = input("Enter rating (1-10), or enter to skip: ")
-            voteNum = float(rating)
-            if rating:
-                anidb.rate_anime(aid, rating=voteNum)
+            prompt_rate_anime(anidb, aid)
 
         if args.playnext:
-            while True:
-                playnext = db.get_playnext_file()
-                if not playnext:
-                    candidates = list(db.get_potential_playnext())
-                    for i, c in enumerate(candidates):
-                        print(i, c.aname_k, c.epno)
-                    while True:
-                        choice = input('Select next series to watch: ')
-                        try:
-                            playnext = candidates[int(choice)]
-                            break
-                        except (ValueError, IndexError):
-                            print('Invalid choice! (ctrl-c to cancel)')
-                        except KeyboardInterrupt:
-                            return
-                if playnext:
-                    rel = os.path.relpath(db.base_anime_folder, os.getcwd())
-                    rel = os.path.join(rel, playnext.path)
-                    print(f"Playing: {playnext}")
-                    subprocess.run(['mpv', rel])
-                    text = input("Hit enter to mark watched and exit, type something to continue watching, ctrl-c to exit now (don't mark watched): ")
-                    db.mark_watched(playnext.fid)
-                    next_episode = db.increment_playnext(playnext)
-                    if not next_episode:
-                        try:
-                            int(playnext.epno)
-                            while True:
-                                try:
-                                    vote = input("Enter rating (1-10), or enter to skip: ")
-                                    voteNum = float(vote)
-                                    if vote:
-                                        anidb.rate_anime(playnext.aid, rating=voteNum)
-                                        anidb.remove_wishlist(playnext.aid)
-                                    break
-                                except ValueError:
-                                    print("Invalid input!")
-                                    pass
-                                except AniDBNoWishlist:
-                                    pass  # Removing it, so this is fine
-                        except ValueError:
-                            pass  # Don't rate special episodes
-                    if not text:
-                        break
+            run_playnext(db, anidb)
 
     except tsubodb.types.AniDBUserError:
         print(red('Invalid username/password.'))
@@ -211,6 +168,53 @@ def main():
             print(unk.path)
         print(red(f"{len(unknown_files)} unknown files"))
 
+def prompt_rate_anime(anidb: tsubodb.api.AniDB, aid: Aid) -> None:
+    while True:
+        try:
+            vote = input("Enter rating (1-10), or enter to skip: ")
+            voteNum = float(vote)
+            if vote:
+                anidb.rate_anime(aid, rating=voteNum)
+                anidb.remove_wishlist(aid)
+            break
+        except ValueError:
+            print("Invalid input!")
+            pass
+        except AniDBNoWishlist:
+            pass  # Removing it, so this is fine
+
+def run_playnext(db: tsubodb.localdb.LocalDB, anidb: tsubodb.api.AniDB) -> None:
+    while True:
+        playnext = db.get_playnext_file()
+        if not playnext:
+            candidates = list(db.get_potential_playnext())
+            for i, c in enumerate(candidates):
+                print(i, c.aname_k, c.epno)
+            while True:
+                choice = input('Select next series to watch: ')
+                try:
+                    playnext = candidates[int(choice)]
+                    break
+                except (ValueError, IndexError):
+                    print('Invalid choice! (ctrl-c to cancel)')
+                except KeyboardInterrupt:
+                    return
+        if playnext:
+            rel = os.path.relpath(db.base_anime_folder, os.getcwd())
+            rel = os.path.join(rel, playnext.path)
+            print(f"Playing: {playnext}")
+            subprocess.run(['mpv', rel])
+            text = input("Hit enter to mark watched and exit, type something to continue watching, ctrl-c to exit now (don't mark watched): ")
+            db.mark_watched(playnext.fid)
+            next_episode = db.increment_playnext(playnext)
+            if not next_episode:
+                try:
+                    int(playnext.epno)
+                    prompt_rate_anime(anidb, playnext.aid)
+                except ValueError:
+                    pass  # Don't rate special episodes
+            if not text:
+                break
 
 if __name__ == '__main__':
     main()

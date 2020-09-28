@@ -7,7 +7,7 @@ from tsubodb.hash import hash_files
 from tsubodb.types import *
 from tsubodb._query import _Query
 
-from typing import Dict, Iterable, Iterator, List, Tuple, Optional, Union
+from typing import Any, Dict, Iterable, Iterator, List, Tuple, Optional, Union
 
 
 class LocalDB:
@@ -17,14 +17,10 @@ class LocalDB:
         self.anidb = anidb
         self.query = _Query(self.conn)
 
-    def __del__(self):
+    def __del__(self) -> None:
         # Maybe don't want this commit here...?
         self.conn.commit()
         self.conn.close()
-
-    @staticmethod
-    def _mylist_from_anidb(data) -> MyList:
-        return MyList(data[0], data[1], data[2], data[3], data[4], int(data[5]), int(data[6]), int(data[7]))
 
     def get_file(self, local: LocalFileInfo) -> Optional[FileInfo]:
         file = self.query.get_file_from_local(local)
@@ -32,8 +28,8 @@ class LocalDB:
             return file
 
         try:
-            info = self.anidb.get_file(local, ('eid', 'aid', 'english', 'romaji', 'kanji', 'epname', 'epromaji', 'epkanji', 'epno'), True)
-            local.fid = Fid(info['fid'])
+            info = self.anidb.get_file(local, ('eid', 'aid', 'english', 'romaji', 'kanji', 'epname', 'epromaji', 'epkanji', 'epno'))
+            local.fid = Fid(int(info['fid']))
             local.checked = True
         except AniDBUnknownFile:
             local.checked = True
@@ -49,15 +45,16 @@ class LocalDB:
 
         return self.query.get_file_from_local(local)
 
-    def get_mylist(self, fid: Fid, viewed=False) -> Optional[MyList]:
-        mylist = self.query.get_mylist_from_fid(fid)
-        if (mylist):
-            return mylist
-        code, data = self.anidb.add_file(fid, storage=1, viewed=viewed)
-        if code == 210:
-            lid = Lid(data[0])
-            data = self.anidb.get_mylist_lid(lid)
-        mylist = LocalDB._mylist_from_anidb(data)
+    def get_mylist(self, fid: Fid, viewed: bool=False) -> Optional[MyList]:
+        local_mylist = self.query.get_mylist_from_fid(fid)
+        if (local_mylist):
+            return local_mylist
+        result = self.anidb.add_mylist(fid, storage=1, viewed=viewed)
+        if isinstance(result, MyList):
+            mylist = result
+        else:
+            lid = Lid(int(result[1][0]))
+            mylist = self.anidb.get_mylist_lid(lid)
         self.query.insert_mylist(mylist)
         return mylist
 
@@ -68,12 +65,11 @@ class LocalDB:
             self.query.mylist_mark_watched(mylist)
 
     def fetch_mylist(self, fid: Fid) -> None:
-        mylist = self.query.get_mylist_from_fid(fid)
-        if (mylist):
-            data = self.anidb.get_mylist_lid(mylist.lid)
+        local_mylist = self.query.get_mylist_from_fid(fid)
+        if (local_mylist):
+            mylist = self.anidb.get_mylist_lid(local_mylist.lid)
         else:
-            data = self.anidb.get_mylist(fid)
-        mylist = LocalDB._mylist_from_anidb(data)
+            mylist = self.anidb.get_mylist(fid)
         self.query.insert_mylist(mylist)
 
     def fill_files(self) -> None:

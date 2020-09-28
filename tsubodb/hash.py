@@ -5,16 +5,16 @@ import hashlib
 import binascii
 
 from tsubodb.types import *
-from typing import Iterable, List
+from typing import Any, Iterable, List, Mapping
 
 
 class Ed2k:
-    def __init__(self):
+    def __init__(self) -> None:
         self.md4_partial = hashlib.new('md4')
         self.md4_final = hashlib.new('md4')
         self.size_total = 0
 
-    def update(self, data):
+    def update(self, data: bytes) -> None:
         pos = 0
         while pos < len(data):
             if (not (self.size_total % 9728000)) and self.size_total:
@@ -25,27 +25,15 @@ class Ed2k:
             pos += size
             self.size_total += size
 
-    def hexdigest(self):
+    def hexdigest(self) -> str:
         if self.size_total > 9728000:
             self.md4_final.update(self.md4_partial.digest())
             return self.md4_final.hexdigest()
         return self.md4_partial.hexdigest()
 
 
-class Crc32:
-    def __init__(self):
-        self.s = 0
-
-    def update(self, data):
-        self.s = binascii.crc32(data, self.s)
-
-    def hexdigest(self):
-        return '{0:08x}'.format(self.s & 0xffffffff)
-
-
-
 class Hash:
-    def __init__(self, filename, algorithms):
+    def __init__(self, filename: str):
         h = Ed2k()
 
         f = open(filename, 'rb')
@@ -57,35 +45,34 @@ class Hash:
 
 
 class HashedFile:
-    def __init__(self, name, algorithms):
+    def __init__(self, name: str):
         self.name = name
         self.size = os.path.getsize(name)
         self.mtime = os.path.getmtime(name)
-        h = Hash(name, algorithms)
+        h = Hash(name)
         self.ed2k = HashStr(h.ed2k)
 
 
 class Hashthread(threading.Thread):
-    def __init__(self, filelist, hashlist: Iterable[HashedFile], algorithms, *args, **kwargs):
+    def __init__(self, filelist: List[str], hashlist: List[HashedFile], *args: Any, **kwargs: Any):
         self.filelist = filelist
         self.hashlist = hashlist
-        self.algorithms = algorithms
         threading.Thread.__init__(self, *args, **kwargs)
 
-    def run(self):
+    def run(self) -> None:
         try:
             while 1:
                 f = self.filelist.pop(0)
-                self.hashlist.append(HashedFile(f, self.algorithms))
+                self.hashlist.append(HashedFile(f))
         except IndexError:
             return
 
 
-def hash_files(files, algorithms=('ed2k',), num_threads=1) -> Iterable[HashedFile]:
+def hash_files(files: List[str], num_threads: int=1) -> Iterable[HashedFile]:
     hashlist: List[HashedFile] = []
     threads = []
     for x in range(num_threads):
-        thread = Hashthread(files, hashlist, algorithms)
+        thread = Hashthread(files, hashlist)
         thread.start()
         threads.append(thread)
     while hashlist or any([thread.isAlive() for thread in threads]):

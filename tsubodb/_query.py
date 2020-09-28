@@ -14,7 +14,7 @@ class _Query:
     def insert_local_file(self, path: str, size: int, ed2k: HashStr) -> None:
         self.conn.execute('INSERT OR REPLACE INTO LocalFiles VALUES(?, ?, ?, 0, 0)', [path, size, ed2k])
 
-    def insert_file_from_anidb(self, info: dict) -> None:
+    def insert_file_from_anidb(self, info: Dict[str, str]) -> None:
         self.conn.execute(
 '''
 INSERT OR REPLACE INTO Files
@@ -97,10 +97,10 @@ WHERE aid == ? AND epno LIKE ?''', [aid, epno]).fetchone()
             return PlaynextFile(*row)
         return None
 
-    def insert_playnext(self, aid: Aid, epno: str):
+    def insert_playnext(self, aid: Aid, epno: str) -> None:
         self.conn.execute('INSERT INTO PlayNext VALUES(?, ?)', [aid, epno])
 
-    def delete_playnext(self, playnext: PlaynextFile):
+    def delete_playnext(self, playnext: PlaynextFile) -> None:
         self.conn.execute('DELETE FROM PlayNext WHERE aid == ? AND epno LIKE ?', [playnext.aid, playnext.epno])
 
     def get_potential_playnext(self) -> Iterator[PlaynextFile]:
