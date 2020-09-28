@@ -84,23 +84,38 @@ class LocalDB:
         for fid in self.query.get_fids_not_in_mylist():
             self.get_mylist(fid)
 
+    def _path_to_rel(self, path: str) -> str:
+        real = os.path.realpath(path)
+        return os.path.relpath(real, self.base_anime_folder)
+
+    def delete_local(self, files: Iterable[str]) -> None:
+        for file in files:
+            rel = self._path_to_rel(file)
+            self.query.delete_local(rel)
+
     def get_local_files(self, files: Iterable[str]) -> Iterable[LocalFileInfo]:
         c = self.conn.cursor()
         unhashed = list()
-        for f in files:
-            real = os.path.realpath(f)
-            rel = os.path.relpath(real, self.base_anime_folder)
+        for file in files:
+            rel = self._path_to_rel(file)
             local = self.query.get_local_file_from_path(rel)
             if local:
                 yield local
             else:
-                unhashed.append(real)
+                unhashed.append(file)
 
         hashed_files = hash_files(unhashed)
         for h in hashed_files:
             local = LocalFileInfo(os.path.relpath(h.name, self.base_anime_folder), h.size, h.ed2k)
             self.query.insert_local_file(local.path, local.size, local.ed2k)
             yield local
+
+    def is_file_known(self, file: str) -> bool:
+        rel = self._path_to_rel(file)
+        local = self.query.get_local_file_from_path(rel)
+        if not local:
+            return False
+        return True
 
     def get_playnext_file(self) -> Optional[PlaynextFile]:
         # TODO might want to support multiple series...?

@@ -27,7 +27,7 @@ fmask = [
     # Note: the m* mylist infos don't seem to work (return blanks always)
 
 amask = [
-    'eptotal', 'eplast', 'year', 'type', 'relaidlsit', 'reladitype', 'categorylist', '',
+    'eptotal', 'eplast', 'year', 'type', 'relatedlist', 'relatedtype', 'categorylist', '',
     'romaji', 'kanji', 'english', 'other', 'shortname', 'synonyms', '', '',
     'epno', 'epname', 'epromaji', 'epkanji', 'eprating', 'epvotecount', '', '',
     'groupname', 'groupshortname', 'category', '', '', '', '', 'dateaidupdated']

@@ -43,8 +43,7 @@ def main():
     parser.add_argument('-u', '--username', help='AniDB username.', default=config.get('username'))
     parser.add_argument('-p', '--password', help='AniDB password.', default=config.get('password'))
 
-    parser.add_argument('-r', '--recursive', help='Recurse into directories.', action='store_true')
-    parser.add_argument('-s', '--suffix', help='File suffix for recursive matching.',
+    parser.add_argument('-s', '--suffix', help='File suffixes to include when scanning directories.',
                         action='append', default=config.get('suffix', '').split())
 
     parser.add_argument('-w', '--watched', help='Mark files watched.', action='store_true')
@@ -57,12 +56,13 @@ def main():
 
     parser.add_argument('--playnext', help='Play next episode then mark watched.', action='store_true')
 
+    parser.add_argument('--scan', help='Scan dir for new files, and import them. Defaults to anime-dir, or specify.',
+                        action='append', nargs='?', const=None, default=[])
+    parser.add_argument('--force-rehash', help='Force rehashing files for scan.', action='store_true')
     parser.add_argument('--fill-database', help='Fill any missing files or Mylists', action='store_true')
     parser.add_argument('--fill-mylist', help='Get/Add MyList for all files.', action='store_true')
 
     parser.add_argument('--vote', help='Rate an anime by aid.')
-
-    parser.add_argument('paths', metavar='Path', nargs='*', help='videos to process.')
 
     argcomplete.autocomplete(parser)
     args = parser.parse_args()
@@ -85,39 +85,39 @@ def main():
     # Input files.
 
     files = []
-    remaining = deque(args.paths)
-    while remaining:
-        name = remaining.popleft()
-        if not os.access(name, os.R_OK):
-            print('{0} {1}'.format(red('Invalid file:'), name))
-        elif os.path.isfile(name):
-            files.append(name)
-        elif os.path.isdir(name):
-            if not args.recursive:
-                print('{0} {1}'.format(red('Is a directory:'), name))
-            else:
-                for sub in sorted(os.listdir(name)):
-                    if sub.startswith('.'):
-                        continue
-                    sub = os.path.join(name, sub)
-                    if os.path.isfile(sub) and any(sub.endswith('.' + suffix) for suffix in args.suffix):
-                        files.append(sub)
-                    elif os.path.isdir(sub):
-                        remaining.appendleft(sub)
+
+    for path in args.scan:
+        if path is None:
+            path = args.anime_dir
+        for dirpath, dirnames, filenames in os.walk(path, onerror=print):
+            for file in filenames:
+                if any(file.endswith('.' + suffix) for suffix in args.suffix):
+                    files.append(os.path.join(dirpath, file))
 
     anidb = tsubodb.api.AniDB(get_username, get_password)
     db = tsubodb.localdb.LocalDB(args.database_file, args.anime_dir, anidb)
 
+    if args.scan:
+        files = [x for x in files if args.force_rehash or not db.is_file_known(x)]
+
+    files = sorted(files)
+
+    unknown_files = []
+
     try:
         if files:
+            if args.force_rehash:
+                db.delete_local(files)
+
             for file in db.get_local_files(files):
                 print(f'{blue("File:")} {file}')
 
                 try:
-                    # Identify.
+                    # Get file, and if new add to mylist
                     info = db.get_file(file)
                     if not info:
                         print(f'{red("Unknown:")} {file}')
+                        unknown_files.append(file)
                         continue
 
                     print(f'{green("Identified:")} {info.aname_k} - {info.epno} - {info.epname_k}')
@@ -204,6 +204,12 @@ def main():
     except tsubodb.types.AniDBError as e:
         print('{0} {1}'.format(red('Fatal error:'), e))
         sys.exit(1)
+
+    if unknown_files:
+        print(red(f"{len(unknown_files)} unknown files:"))
+        for unk in unknown_files:
+            print(unk.path)
+        print(red(f"{len(unknown_files)} unknown files"))
 
 
 if __name__ == '__main__':

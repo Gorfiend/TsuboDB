@@ -32,6 +32,9 @@ VALUES(:lid, :fid, :eid, :aid, :gid, :date, :state, :viewdate)
         timestamp = int(time.time())
         self.conn.execute('UPDATE Mylist SET viewdate = ? WHERE lid = ?', [timestamp, mylist.lid])
 
+    def delete_local(self, path: str) -> None:
+        self.conn.execute('DELETE FROM  LocalFiles WHERE path LIKE ?', [path])
+
     def get_local_file_from_path(self, path: str) -> Optional[LocalFileInfo]:
         row = self.conn.execute('SELECT * from LocalFiles WHERE path LIKE ?', [path]).fetchone()
         if row:
