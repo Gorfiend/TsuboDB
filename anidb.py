@@ -171,17 +171,15 @@ def main() -> None:
 def prompt_rate_anime(anidb: tsubodb.api.AniDB, aid: Aid) -> None:
     while True:
         try:
-            vote = input("Enter rating (1-10), or enter to skip: ")
+            vote = input("Enter rating (1-10): ")
             voteNum = float(vote)
-            if vote:
-                anidb.rate_anime(aid, rating=voteNum)
-                anidb.remove_wishlist(aid)
+            anidb.rate_anime(aid, rating=voteNum)
+            anidb.remove_wishlist(aid)
             break
         except ValueError:
             print("Invalid input!")
-            pass
         except AniDBNoWishlist:
-            pass  # Removing it, so this is fine
+            break  # Removing it, so this is fine
 
 def run_playnext(db: tsubodb.localdb.LocalDB, anidb: tsubodb.api.AniDB) -> None:
     while True:
