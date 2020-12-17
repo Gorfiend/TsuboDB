@@ -89,6 +89,7 @@ def main() -> None:
     files = []
 
     for path in args.scan:
+        # TODO this can cause bad paths to go into database (../../../.. prefix)
         if path is None:
             path = args.anime_dir
         for dirpath, dirnames, filenames in os.walk(path, onerror=print):
@@ -163,21 +164,21 @@ def main() -> None:
         sys.exit(1)
 
     if unknown_files:
-        print(red(f"{len(unknown_files)} unknown files:"))
+        print(red(f'{len(unknown_files)} unknown files:'))
         for unk in unknown_files:
             print(unk.path)
-        print(red(f"{len(unknown_files)} unknown files"))
+        print(red(f'{len(unknown_files)} unknown files'))
 
 def prompt_rate_anime(anidb: tsubodb.api.AniDB, aid: Aid) -> None:
     while True:
         try:
-            vote = input("Enter rating (1-10): ")
+            vote = input('Enter rating (1-10): ')
             voteNum = float(vote)
             anidb.rate_anime(aid, rating=voteNum)
             anidb.remove_wishlist(aid)
             break
         except ValueError:
-            print("Invalid input!")
+            print('Invalid input!')
         except AniDBNoWishlist:
             break  # Removing it, so this is fine
 
@@ -200,7 +201,7 @@ def run_playnext(db: tsubodb.localdb.LocalDB, anidb: tsubodb.api.AniDB) -> None:
         if playnext:
             rel = os.path.relpath(db.base_anime_folder, os.getcwd())
             rel = os.path.join(rel, playnext.path)
-            print(f"Playing: {playnext}")
+            print(f'{blue("Playing")}: {playnext}')
             subprocess.run(['mpv', rel])
             text = input("Hit enter to mark watched and exit, type something to continue watching, ctrl-c to exit now (don't mark watched): ")
             db.mark_watched(playnext.fid)
