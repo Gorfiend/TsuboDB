@@ -1,6 +1,7 @@
 
 import sqlite3
 import os
+import re
 
 from tsubodb.api import AniDB
 from tsubodb.hash import hash_files
@@ -15,6 +16,9 @@ class LocalDB:
         self.base_anime_folder = base_anime_folder
         self.conn = sqlite3.connect(db_file)
         self.anidb = anidb
+
+        # Add regexp function.
+        self.conn.create_function('regexp', 2, lambda x, y: 1 if re.search(x,y) else 0)
         self.query = _Query(self.conn)
 
     def __del__(self) -> None:
@@ -125,7 +129,7 @@ class LocalDB:
             code = playnext.epno[0]
             epnum = int(playnext.epno[1:])
         epnum += 1
-        new_epno = f'{code}{epnum:0{2}}'
+        new_epno = f'^{code}0*{epnum}$'
         nextInfo = self.query.get_playnext_for_episode(playnext.aid, new_epno)
         self.query.delete_playnext(playnext)
         if nextInfo:

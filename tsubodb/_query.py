@@ -92,7 +92,7 @@ LEFT JOIN LocalFiles USING(fid)''').fetchone()
 SELECT Files.aid, Files.fid, path, aname_k, epname_k, epno
 FROM Files
 LEFT JOIN LocalFiles USING(fid)
-WHERE aid == ? AND epno LIKE ?''', [aid, epno]).fetchone()
+WHERE aid == ? AND epno REGEXP ?''', [aid, epno]).fetchone()
         if row:
             return PlaynextFile(*row)
         return None
