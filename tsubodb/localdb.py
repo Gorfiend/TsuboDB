@@ -84,9 +84,9 @@ class LocalDB:
         for fid in self.query.get_fids_not_in_mylist():
             self.get_mylist(fid)
 
-    def _path_to_rel(self, path: str) -> str:
+    def _path_to_rel(self, path: str) -> DbRelPath:
         real = os.path.realpath(path)
-        return os.path.relpath(real, self.base_anime_folder)
+        return DbRelPath(os.path.relpath(real, self.base_anime_folder))
 
     def delete_local(self, files: Iterable[str]) -> None:
         for file in files:
@@ -106,7 +106,7 @@ class LocalDB:
 
         hashed_files = hash_files(unhashed)
         for h in hashed_files:
-            local = LocalFileInfo(os.path.relpath(h.name, self.base_anime_folder), h.size, h.ed2k)
+            local = LocalFileInfo(self._path_to_rel(h.name), h.size, h.ed2k)
             self.query.insert_local_file(local.path, local.size, local.ed2k)
             yield local
 

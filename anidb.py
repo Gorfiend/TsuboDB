@@ -67,8 +67,6 @@ def main() -> None:
     argcomplete.autocomplete(parser)
     args = parser.parse_args()
 
-    os.chdir(args.anime_dir)
-
     if not args.suffix:
         args.suffix = ['avi', 'ogm', 'mkv', 'mp4']
 
@@ -106,6 +104,8 @@ def main() -> None:
     files = sorted(files)
 
     unknown_files = []
+
+    os.chdir(args.anime_dir)
 
     try:
         if files:

@@ -11,7 +11,7 @@ class _Query:
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
 
-    def insert_local_file(self, path: str, size: int, ed2k: HashStr) -> None:
+    def insert_local_file(self, path: DbRelPath, size: int, ed2k: HashStr) -> None:
         self.conn.execute('INSERT OR REPLACE INTO LocalFiles VALUES(?, ?, ?, 0, 0)', [path, size, ed2k])
 
     def insert_file_from_anidb(self, info: Dict[str, str]) -> None:
@@ -32,10 +32,10 @@ VALUES(:lid, :fid, :eid, :aid, :gid, :date, :state, :viewdate)
         timestamp = int(time.time())
         self.conn.execute('UPDATE Mylist SET viewdate = ? WHERE lid = ?', [timestamp, mylist.lid])
 
-    def delete_local(self, path: str) -> None:
+    def delete_local(self, path: DbRelPath) -> None:
         self.conn.execute('DELETE FROM  LocalFiles WHERE path LIKE ?', [path])
 
-    def get_local_file_from_path(self, path: str) -> Optional[LocalFileInfo]:
+    def get_local_file_from_path(self, path: DbRelPath) -> Optional[LocalFileInfo]:
         row = self.conn.execute('SELECT * from LocalFiles WHERE path LIKE ?', [path]).fetchone()
         if row:
             return LocalFileInfo(*row)

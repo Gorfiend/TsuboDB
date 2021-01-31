@@ -7,10 +7,11 @@ Aid = typing.NewType('Aid', int)  # AniDB anime ID
 Lid = typing.NewType('Lid', int)  # AniDB mylist ID
 Gid = typing.NewType('Gid', int)  # AniDB group ID
 HashStr = typing.NewType('HashStr', str)
+DbRelPath = typing.NewType('DbRelPath', str)
 
 class LocalFileInfo:
-    def __init__(self, path: str, size: int, ed2k: HashStr, fid: Fid = Fid(0), checked: bool = False):
-        self.path = path
+    def __init__(self, path: DbRelPath, size: int, ed2k: HashStr, fid: Fid = Fid(0), checked: bool = False):
+        self.path: DbRelPath = path
         self.size = size
         self.ed2k = ed2k
         self.fid = fid
