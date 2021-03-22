@@ -59,6 +59,7 @@ def main() -> None:
     parser.add_argument('--scan', help='Scan dir for new files, and import them. Defaults to anime-dir, or specify.',
                         action='append', nargs='?', const=None, default=[])
     parser.add_argument('--force-rehash', help='Force rehashing files for scan.', action='store_true')
+    parser.add_argument('--force-recheck', help='Force rechecking with anidb files for scan (use after adding files to anidb through Avdump2)', action='store_true')
     parser.add_argument('--fill-database', help='Fill any missing files or Mylists', action='store_true')
     parser.add_argument('--fill-mylist', help='Get/Add MyList for all files.', action='store_true')
 
@@ -99,7 +100,7 @@ def main() -> None:
     db = tsubodb.localdb.LocalDB(args.database_file, args.anime_dir, anidb)
 
     if args.scan:
-        files = [x for x in files if args.force_rehash or not db.is_file_known(x)]
+        files = [x for x in files if args.force_rehash or args.force_recheck or not db.is_file_known(x)]
 
     files = sorted(files)
 
@@ -111,6 +112,8 @@ def main() -> None:
         if files:
             if args.force_rehash:
                 db.delete_local(files)
+            if args.force_recheck:
+                db.force_recheck(files)
 
             for file in db.get_local_files(files):
                 print(f'{blue("File:")} {file}')

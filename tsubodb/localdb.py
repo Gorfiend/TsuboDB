@@ -93,6 +93,11 @@ class LocalDB:
             rel = self._path_to_rel(file)
             self.query.delete_local(rel)
 
+    def force_recheck(self, files: Iterable[str]) -> None:
+        for file in files:
+            rel = self._path_to_rel(file)
+            self.query.force_recheck(rel)
+
     def get_local_files(self, files: Iterable[str]) -> Iterable[LocalFileInfo]:
         c = self.conn.cursor()
         unhashed = list()
