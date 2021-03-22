@@ -1,7 +1,11 @@
-PyAniDB
+TsuboDB
 =========
 
-PyAniDB is a client for AniDB's UDP API. (http://anidb.net/)
+TsuboDB is a client for AniDB's UDP API. (http://anidb.net/)
+Intended to create a simple, automated flow for easily watching anime and
+recording it to an AniDB profile.
+
+Originally based on PyAniDB. (https://github.com/xyzz/pyanidb)
 
 Installation
 ============
@@ -14,29 +18,38 @@ For manual installation; run:
 Usage
 =====
 
-usage: anidb.py [options]
+usage: tsubodb.py [options]
 
 options:
   -h, --help            show this help message and exit
-  -u USERNAME, --username=USERNAME
+  -u USERNAME, --username USERNAME
                         AniDB username.
-  -p PASSWORD, --password=PASSWORD
+  -p PASSWORD, --password PASSWORD
                         AniDB password.
-  -r, --recursive       Recurse into directories.
-  -s SUFFIX, --suffix=SUFFIX
-                        File suffix for recursive matching.
-  -i, --identify        Identify files.
-  -a, --add             Add files to mylist.
-  -n, --rename          Rename files.
-  -f FORMAT, --format=FORMAT
-                        Filename format.
+  -s SUFFIX, --suffix SUFFIX
+                        File suffixes to include when scanning directories.
+  -w, --watched         Mark files watched.
+  --fetch-mylist        Re-download mylist into db.
+  --database-file DATABASE_FILE
+                        Database file location.
+  --anime-dir ANIME_DIR
+                        Anime base dir for file scanning.
+  --playnext            Play next episode then mark watched.
+  --scan [SCAN]         Scan dir for new files, and import them. Defaults to
+                        anime-dir, or specify.
+  --force-rehash        Force rehashing files for scan.
+  --force-recheck       Force rechecking with anidb files for scan (use after
+                        adding files to anidb through Avdump2)
+  --fill-database       Fill any missing files or Mylists
+  --fill-mylist         Get/Add MyList for all files.
+  --vote VOTE           Rate an anime by aid.
 
 Example:
 
-$ anidb.py -ar the\ third/
-  Logged in as user zyp.
-  Hashed: ed2k://|file|the third/[Ayu]_The_Third_-_Aoi_Hitomi_no_Shoujo_-_01_[02F71A89].avi|241101858|a282df72fe8bbb6a241c740566e46f91|
-  Added file: the third/[Ayu]_The_Third_-_Aoi_Hitomi_no_Shoujo_-_01_[02F71A89].avi
-  Hashed: ed2k://|file|the third/[Ayu]_The_Third_-_Aoi_Hitomi_no_Shoujo_-_02_[DDFB905E].avi|242085640|5c857e5dc73c88108f50f7566aeaa977|
-  Added file: the third/[Ayu]_The_Third_-_Aoi_Hitomi_no_Shoujo_-_02_[DDFB905E].avi
-  All operations finished.
+TODO
+after setting up the config file to point at your video player and anime
+directory:
+
+tsubodb.py --scan
+
+tsubodb.py --playnext
