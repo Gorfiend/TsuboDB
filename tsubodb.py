@@ -1,13 +1,6 @@
 #!/usr/bin/env python3
 # PYTHON_ARGCOMPLETE_OK
 
-import tsubodb
-import tsubodb.api
-import tsubodb.hash
-import tsubodb.localdb
-from tsubodb.types import *
-
-import argcomplete
 import argparse
 import configparser
 import getpass
@@ -15,25 +8,36 @@ import os
 import subprocess
 import sys
 
-from collections import deque
+import argcomplete
 
-from typing import Iterable, Optional
+import tsubodb.api
+import tsubodb.hash
+import tsubodb.localdb
+from tsubodb.types import *
 
 # Colors.
-def red(x: str) -> str: return '\x1b[31m' + x + '\x1b[0m'
-def green(x: str) -> str: return '\x1b[32m' + x + '\x1b[0m'
-def yellow(x: str) -> str: return '\x1b[33m' + x + '\x1b[0m'
-def blue(x: str) -> str: return '\x1b[34m' + x + '\x1b[0m'
+def red(text: str) -> str:
+    return '\x1b[31m' + text + '\x1b[0m'
+
+def green(text: str) -> str:
+    return '\x1b[32m' + text + '\x1b[0m'
+
+def yellow(text: str) -> str:
+    return '\x1b[33m' + text + '\x1b[0m'
+
+def blue(text: str) -> str:
+    return '\x1b[34m' + text + '\x1b[0m'
+
 
 def main() -> None:
     # Config.
     config = {}
     try:
-        cp = configparser.ConfigParser()
-        cp.read([os.path.expanduser('~/.config/tsubodb/tsubodb.conf')])
-        for option in cp.options('tsubodb'):
-            config[option] = cp.get('tsubodb', option)
-    except IOError as e:
+        config_parser = configparser.ConfigParser()
+        config_parser.read([os.path.expanduser('~/.config/tsubodb/tsubodb.conf')])
+        for option in config_parser.options('tsubodb'):
+            config[option] = config_parser.get('tsubodb', option)
+    except IOError:
         pass
 
     # Options.
@@ -91,7 +95,7 @@ def main() -> None:
         # TODO this can cause bad paths to go into database (../../../.. prefix)
         if path is None:
             path = args.anime_dir
-        for dirpath, dirnames, filenames in os.walk(path, onerror=print):
+        for dirpath, _dirnames, filenames in os.walk(path, onerror=print):
             for file in filenames:
                 if any(file.endswith('.' + suffix) for suffix in args.suffix):
                     files.append(os.path.join(dirpath, file))
@@ -162,8 +166,8 @@ def main() -> None:
     except tsubodb.types.AniDBTimeout:
         print(red('Connection timed out.'))
         sys.exit(1)
-    except tsubodb.types.AniDBError as e:
-        print('{0} {1}'.format(red('Fatal error:'), e))
+    except tsubodb.types.AniDBError as err:
+        print('{0} {1}'.format(red('Fatal error:'), err))
         sys.exit(1)
 
     if unknown_files:
@@ -205,7 +209,7 @@ def run_playnext(db: tsubodb.localdb.LocalDB, anidb: tsubodb.api.AniDB) -> None:
             rel = os.path.relpath(db.base_anime_folder, os.getcwd())
             rel = os.path.join(rel, playnext.path)
             print(f'{blue("Playing")}: {playnext}')
-            subprocess.run(['mpv', rel])
+            subprocess.run(['mpv', rel], check=False)
             text = input("Hit enter to mark watched and exit, type something to continue watching, ctrl-c to exit now (don't mark watched): ")
             db.mark_watched(playnext.fid)
             next_episode = db.increment_playnext(playnext)
