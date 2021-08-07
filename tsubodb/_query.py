@@ -103,23 +103,21 @@ WHERE aid == ? AND epno REGEXP ?''', [aid, epno]).fetchone()
     def insert_playnext(self, aid: Aid, epno: str) -> None:
         self.conn.execute('INSERT INTO PlayNext VALUES(?, ?)', [aid, epno])
 
-    def delete_playnext(self, playnext: PlaynextFile) -> None:
-        self.conn.execute('DELETE FROM PlayNext WHERE aid == ? AND epno LIKE ?', [playnext.aid, playnext.epno])
+    def delete_playnext(self) -> None:
+        self.conn.execute('DELETE FROM PlayNext')
 
     def get_potential_playnext(self) -> Iterator[PlaynextFile]:
         """
         Find series (defined by unique aid+epno code) that have not been watched
         Return the earliest epno for each of those
         Ignoring C and T code (credits/trailers)
-        Also ignore entries that are already in the playnext table
         """
         c = self.conn.cursor()
         for row in c.execute('''
-SELECT Files.aid, Files.fid, path, aname_k, epname_k, epno, PlayNext.aid AS pnaid, PlayNext.epno AS pnepno
+SELECT Files.aid, Files.fid, path, aname_k, epname_k, epno
 FROM Files
 LEFT JOIN MyList USING(fid)
 LEFT JOIN LocalFiles USING(fid)
-LEFT JOIN PlayNext USING(aid, epno)
 INNER JOIN
     (
         SELECT Files.aid, MIN(epno) as epnomin,
@@ -134,7 +132,6 @@ INNER JOIN
         WHERE viewdate = 0 AND epcode NOT LIKE "C" AND epcode NOT LIKE "T"
         GROUP BY Files.aid, epcode
     ) AS SQ ON SQ.aid = Files.aid AND SQ.epnomin = epno
-WHERE (pnaid IS NULL OR Files.aid != pnaid) AND (pnepno IS NULL OR epno != pnepno)
 ORDER BY Files.aid ASC, epno ASC'''):
             yield PlaynextFile(*row[:6])
         c.close()

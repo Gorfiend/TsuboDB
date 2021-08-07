@@ -59,6 +59,7 @@ def main() -> None:
                         default=config.get('anime-dir', '.'))
 
     parser.add_argument('--playnext', help='Play next episode then mark watched.', action='store_true')
+    parser.add_argument('--play', help='Choose an unfinished anime and watch the next unwatched episode in it.', action='store_true')
 
     parser.add_argument('--scan', help='Scan dir for new files, and import them. Defaults to anime-dir, or specify.',
                         action='append', nargs='?', const=None, default=[])
@@ -158,7 +159,10 @@ def main() -> None:
             prompt_rate_anime(anidb, aid)
 
         if args.playnext:
-            run_playnext(db, anidb)
+            run_playnext(db, anidb, True)
+
+        if args.play:
+            run_playnext(db, anidb, False)
 
     except tsubodb.types.AniDBUserError:
         print(red('Invalid username/password.'))
@@ -189,16 +193,16 @@ def prompt_rate_anime(anidb: tsubodb.api.AniDB, aid: Aid) -> None:
         except AniDBNoWishlist:
             break  # Removing it, so this is fine
 
-def run_playnext(db: tsubodb.localdb.LocalDB, anidb: tsubodb.api.AniDB) -> None:
+def run_playnext(db: tsubodb.localdb.LocalDB, anidb: tsubodb.api.AniDB, auto_choose: bool) -> None:
     while True:
         playnext = db.get_playnext_file()
-        if not playnext:
+        if not auto_choose or not playnext:
             candidates = list(db.get_potential_playnext())
             for i, c in enumerate(candidates):
                 print(i, c.aname_k, c.epno)
             while True:
-                choice = input('Select next series to watch: ')
                 try:
+                    choice = input('Select next series to watch: ')
                     playnext = candidates[int(choice)]
                     break
                 except (ValueError, IndexError):

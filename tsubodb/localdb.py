@@ -136,7 +136,7 @@ class LocalDB:
         epnum += 1
         new_epno = f'^{code}0*{epnum}$'
         nextInfo = self.query.get_playnext_for_episode(playnext.aid, new_epno)
-        self.query.delete_playnext(playnext)
+        self.query.delete_playnext()
         if nextInfo:
             self.query.insert_playnext(nextInfo.aid, nextInfo.epno)
             return nextInfo
