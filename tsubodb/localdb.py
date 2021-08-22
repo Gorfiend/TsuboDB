@@ -122,11 +122,11 @@ class LocalDB:
             return False
         return True
 
-    def get_playnext_file(self) -> Optional[PlaynextFile]:
+    def get_playnext_file(self) -> Optional[LocalEpisodeInfo]:
         # TODO might want to support multiple series...?
         return self.query.get_playnext_file()
 
-    def increment_playnext(self, playnext: PlaynextFile) -> Optional[PlaynextFile]:
+    def increment_playnext(self, playnext: LocalEpisodeInfo) -> Optional[LocalEpisodeInfo]:
         try:
             code = ''
             epnum = int(playnext.epno)
@@ -143,5 +143,5 @@ class LocalDB:
         else:
             return None
 
-    def get_potential_playnext(self) -> Iterator[PlaynextFile]:
+    def get_potential_playnext(self) -> Iterator[LocalEpisodeInfo]:
         return self.query.get_potential_playnext()

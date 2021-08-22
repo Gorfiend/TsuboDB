@@ -55,17 +55,20 @@ class MyList:
         self.watched = viewdate > 0
 
 
-class PlaynextFile():
-    def __init__(self, aid: Aid, fid: Fid, path: str, aname_k: str, epname_k: str, epno: str):
+class LocalEpisodeInfo():
+    def __init__(self, aid: Aid, fid: Fid, path: str, aname_k: str, epname_k: str, epno: str, epcode: str, epnomax: str, viewed: bool):
         self.aid = aid
         self.fid = fid
         self.path = path
         self.aname_k = aname_k
         self.epname_k = epname_k
         self.epno = epno
+        self.epcode = epcode
+        self.epnomax = epnomax
+        self.viewed = viewed
 
     def __str__(self) -> str:
-        return f'{self.aname_k} - {self.epno} - {self.epname_k}'
+        return f'{self.aname_k} - ({self.epno}/{self.epnomax}) - {self.epname_k}'
 
 
 # AniDB exceptions

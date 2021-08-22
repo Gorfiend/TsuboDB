@@ -80,24 +80,22 @@ WHERE Mylist.date IS NULL'''):
             yield Fid(row[0])
         c.close()
 
-    def get_playnext_file(self) -> Optional[PlaynextFile]:
+    def get_playnext_file(self) -> Optional[LocalEpisodeInfo]:
         row = self.conn.execute('''
-SELECT Files.aid, Files.fid, path, aname_k, epname_k, epno
+SELECT LocalEpisodeInfo.*
 FROM PlayNext
-LEFT JOIN Files USING(aid, epno)
-LEFT JOIN LocalFiles USING(fid)''').fetchone()
+LEFT JOIN LocalEpisodeInfo USING(aid, epno)''').fetchone()
         if row:
-            return PlaynextFile(*row)
+            return LocalEpisodeInfo(*row)
         return None
 
-    def get_playnext_for_episode(self, aid: Aid, epno: str) -> Optional[PlaynextFile]:
+    def get_playnext_for_episode(self, aid: Aid, epno: str) -> Optional[LocalEpisodeInfo]:
         row = self.conn.execute('''
-SELECT Files.aid, Files.fid, path, aname_k, epname_k, epno
-FROM Files
-LEFT JOIN LocalFiles USING(fid)
+SELECT *
+FROM LocalEpisodeInfo
 WHERE aid == ? AND epno REGEXP ?''', [aid, epno]).fetchone()
         if row:
-            return PlaynextFile(*row)
+            return LocalEpisodeInfo(*row)
         return None
 
     def insert_playnext(self, aid: Aid, epno: str) -> None:
@@ -106,7 +104,7 @@ WHERE aid == ? AND epno REGEXP ?''', [aid, epno]).fetchone()
     def delete_playnext(self) -> None:
         self.conn.execute('DELETE FROM PlayNext')
 
-    def get_potential_playnext(self) -> Iterator[PlaynextFile]:
+    def get_potential_playnext(self) -> Iterator[LocalEpisodeInfo]:
         """
         Find series (defined by unique aid+epno code) that have not been watched
         Return the earliest epno for each of those
@@ -114,24 +112,16 @@ WHERE aid == ? AND epno REGEXP ?''', [aid, epno]).fetchone()
         """
         c = self.conn.cursor()
         for row in c.execute('''
-SELECT Files.aid, Files.fid, path, aname_k, epname_k, epno
-FROM Files
-LEFT JOIN MyList USING(fid)
-LEFT JOIN LocalFiles USING(fid)
-INNER JOIN
-    (
-        SELECT Files.aid, MIN(epno) as epnomin,
+SELECT LocalEpisodeInfo.*, MIN(epno) as epnomin,
             CASE
                 WHEN epno GLOB '[A-Z]*' THEN
                     substr(epno, 1, 1)
                 ELSE
                     ''
                 END epcode
-        FROM Files
-        LEFT JOIN MyList USING(fid)
-        WHERE viewdate = 0 AND epcode NOT LIKE "C" AND epcode NOT LIKE "T"
-        GROUP BY Files.aid, epcode
-    ) AS SQ ON SQ.aid = Files.aid AND SQ.epnomin = epno
-ORDER BY Files.aid ASC, epno ASC'''):
-            yield PlaynextFile(*row[:6])
+FROM LocalEpisodeInfo
+WHERE NOT viewed AND epcode NOT LIKE "C" AND epcode NOT LIKE "T"
+GROUP BY aid, epcode
+ORDER BY aid ASC, epno ASC'''):
+            yield LocalEpisodeInfo(*row[:9])
         c.close()

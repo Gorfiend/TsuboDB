@@ -214,17 +214,20 @@ def run_playnext(db: tsubodb.localdb.LocalDB, anidb: tsubodb.api.AniDB, auto_cho
             rel = os.path.join(rel, playnext.path)
             print(f'{blue("Playing")}: {playnext}')
             subprocess.run(['mpv', rel], check=False)
-            text = input("Hit enter to mark watched and exit, type something to continue watching, ctrl-c to exit now (don't mark watched): ")
-            db.mark_watched(playnext.fid)
-            next_episode = db.increment_playnext(playnext)
-            if not next_episode:
-                try:
-                    int(playnext.epno)
-                    prompt_rate_anime(anidb, playnext.aid)
-                except ValueError:
-                    pass  # Don't rate special episodes
-            if not text:
-                break
+            try:
+                text = input("Hit enter to mark watched and exit, type something to continue watching, ctrl-c to exit now (don't mark watched): ")
+                db.mark_watched(playnext.fid)
+                next_episode = db.increment_playnext(playnext)
+                if not next_episode:
+                    try:
+                        int(playnext.epno)
+                        prompt_rate_anime(anidb, playnext.aid)
+                    except ValueError:
+                        pass  # Don't rate special episodes
+                if not text:
+                    break
+            except KeyboardInterrupt:
+                return
 
 if __name__ == '__main__':
     main()
