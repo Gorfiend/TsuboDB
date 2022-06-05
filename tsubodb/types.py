@@ -56,10 +56,14 @@ class MyList:
 
 
 class LocalEpisodeInfo():
-    def __init__(self, aid: Aid, fid: Fid, path: str, aname_k: str, epname_k: str, epno: str, epcode: str, epnomax: str, viewed: bool):
+    def __init__(self, aid: Aid, fid: Fid, path: str, aname_e: str, epname_e: str, aname_r: str, epname_r: str, aname_k: str, epname_k: str, epno: str, epcode: str, epnomax: str, viewed: bool):
         self.aid = aid
         self.fid = fid
         self.path = path
+        self.aname_e = aname_e
+        self.epname_e = epname_e
+        self.aname_r = aname_r
+        self.epname_r = epname_r
         self.aname_k = aname_k
         self.epname_k = epname_k
         self.epno = epno
@@ -68,7 +72,15 @@ class LocalEpisodeInfo():
         self.viewed = viewed
 
     def __str__(self) -> str:
-        return f'{self.aname_k} - ({self.epno}/{self.epnomax}) - {self.epname_k}'
+        return f'{self.aname_r} - ({self.epno}/{self.epnomax}) - {self.epname_r}'
+
+    def display_string(self, language: str) -> str:
+        if language == 'kanji':
+            return f'{self.aname_k} - ({self.epno}/{self.epnomax}) - {self.epname_k}'
+        if language == 'english':
+            return f'{self.aname_e} - ({self.epno}/{self.epnomax}) - {self.epname_e}'
+        return f'{self.aname_r} - ({self.epno}/{self.epnomax}) - {self.epname_r}'
+
 
 
 # AniDB exceptions

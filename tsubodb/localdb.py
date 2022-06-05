@@ -123,7 +123,6 @@ class LocalDB:
         return True
 
     def get_playnext_file(self) -> Optional[LocalEpisodeInfo]:
-        # TODO might want to support multiple series...?
         return self.query.get_playnext_file()
 
     def increment_playnext(self, playnext: LocalEpisodeInfo) -> Optional[LocalEpisodeInfo]:

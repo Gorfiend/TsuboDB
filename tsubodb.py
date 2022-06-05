@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # PYTHON_ARGCOMPLETE_OK
 
+# Path to config file
+CONFIG_FILE_PATH = '~/.config/tsubodb/tsubodb.conf'
+
 import argparse
 import configparser
 import getpass
@@ -28,13 +31,14 @@ def yellow(text: str) -> str:
 def blue(text: str) -> str:
     return '\x1b[34m' + text + '\x1b[0m'
 
+language = 'romaji'
 
 def main() -> None:
     # Config.
     config = {}
     try:
         config_parser = configparser.ConfigParser()
-        config_parser.read([os.path.expanduser('~/.config/tsubodb/tsubodb.conf')])
+        config_parser.read([os.path.expanduser(CONFIG_FILE_PATH)])
         for option in config_parser.options('tsubodb'):
             config[option] = config_parser.get('tsubodb', option)
     except IOError:
@@ -46,6 +50,9 @@ def main() -> None:
 
     parser.add_argument('-u', '--username', help='AniDB username.', default=config.get('username'))
     parser.add_argument('-p', '--password', help='AniDB password.', default=config.get('password'))
+
+    parser.add_argument('-l', '--language', help='Language for anime/episode titles, one of: "romaji" (default), "english", "kanji".',
+                        default=config.get('language', 'romaji'))
 
     parser.add_argument('-s', '--suffix', help='File suffixes to include when scanning directories.',
                         action='append', default=config.get('suffix', '').split())
@@ -72,6 +79,9 @@ def main() -> None:
 
     argcomplete.autocomplete(parser)
     args = parser.parse_args()
+
+    global language
+    language = args.language
 
     if not args.suffix:
         args.suffix = ['avi', 'ogm', 'mkv', 'mp4']
@@ -199,7 +209,12 @@ def run_playnext(db: tsubodb.localdb.LocalDB, anidb: tsubodb.api.AniDB, auto_cho
         if not auto_choose or not playnext:
             candidates = list(db.get_potential_playnext())
             for i, c in enumerate(candidates):
-                print(i, c.aname_k, c.epno)
+                if language == 'kanji':
+                    print(i, c.aname_k, c.epno)
+                elif language == 'english':
+                    print(i, c.aname_e, c.epno)
+                else:
+                    print(i, c.aname_r, c.epno)
             while True:
                 try:
                     choice = input('Select next series to watch: ')
@@ -212,7 +227,7 @@ def run_playnext(db: tsubodb.localdb.LocalDB, anidb: tsubodb.api.AniDB, auto_cho
         if playnext:
             rel = os.path.relpath(db.base_anime_folder, os.getcwd())
             rel = os.path.join(rel, playnext.path)
-            print(f'{blue("Playing")}: {playnext}')
+            print(f'{blue("Playing")}: {playnext.display_string(language)}')
             subprocess.run(['mpv', rel], check=False)
             try:
                 text = input("Hit enter to mark watched and exit, type something to continue watching, ctrl-c to exit now (don't mark watched): ")

@@ -123,5 +123,5 @@ FROM LocalEpisodeInfo
 WHERE NOT viewed AND epcode NOT LIKE "C" AND epcode NOT LIKE "T"
 GROUP BY aid, epcode
 ORDER BY aid ASC, epno ASC'''):
-            yield LocalEpisodeInfo(*row[:9])
+            yield LocalEpisodeInfo(*row[:13])
         c.close()

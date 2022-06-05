@@ -1,0 +1,10 @@
+[tsubodb]
+username = MyUserName
+password = MyPassword
+
+anime-dir = /data/Anime
+
+suffix = avi ogm mkv mp4
+
+# Language for anime/episode titles, one of: "romaji" (default), "english", "kanji"
+language = kanji
