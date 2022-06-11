@@ -4,7 +4,7 @@ import sqlite3
 
 from tsubodb.types import *
 
-from typing import Dict, Iterable, Iterator, List, Tuple, Optional, Union
+from typing import Dict, Iterator, Optional
 
 
 class _Query:
@@ -76,7 +76,8 @@ WHERE path LIKE ?
 SELECT fid
 FROM Files
 LEFT JOIN MyList USING(fid)
-WHERE Mylist.date IS NULL'''):
+WHERE Mylist.date IS NULL
+'''):
             yield Fid(row[0])
         c.close()
 
@@ -84,7 +85,8 @@ WHERE Mylist.date IS NULL'''):
         row = self.conn.execute('''
 SELECT LocalEpisodeInfo.*
 FROM PlayNext
-LEFT JOIN LocalEpisodeInfo USING(aid, epno)''').fetchone()
+LEFT JOIN LocalEpisodeInfo USING(aid, epno)
+''').fetchone()
         if row:
             return LocalEpisodeInfo(*row)
         return None
@@ -93,7 +95,8 @@ LEFT JOIN LocalEpisodeInfo USING(aid, epno)''').fetchone()
         row = self.conn.execute('''
 SELECT *
 FROM LocalEpisodeInfo
-WHERE aid == ? AND epno REGEXP ?''', [aid, epno]).fetchone()
+WHERE aid == ? AND epno REGEXP ?
+''', [aid, epno]).fetchone()
         if row:
             return LocalEpisodeInfo(*row)
         return None
@@ -122,6 +125,119 @@ SELECT LocalEpisodeInfo.*, MIN(epno) as epnomin,
 FROM LocalEpisodeInfo
 WHERE NOT viewed AND epcode NOT LIKE "C" AND epcode NOT LIKE "T"
 GROUP BY aid, epcode
-ORDER BY aid ASC, epno ASC'''):
+ORDER BY aid ASC, epno ASC
+'''):
             yield LocalEpisodeInfo(*row[:13])
         c.close()
+
+    def init_db(self) -> None:
+        version = 0
+        try:
+            version = self.conn.execute('SELECT * FROM Version').fetchone()[0]
+        except:
+            pass
+
+
+        if version < 1:
+            # Version 0, create just the version table
+            self.conn.execute('''
+CREATE TABLE IF NOT EXISTS "Version" (
+        "ver"   INTEGER 
+);
+''')
+
+            self.conn.execute('INSERT INTO Version VALUES (1)')
+
+        if version < 2:
+            # Version 1, create all the tables/views here
+            # Can perform more updates similar to this
+            self.conn.execute('''
+CREATE TABLE IF NOT EXISTS "MyList" (
+        "lid"   INTEGER UNIQUE,
+        "fid"   INTEGER,
+        "eid"   INTEGER,
+        "aid"   INTEGER,
+        "gid"   INTEGER,
+        "date"  INTEGER,
+        "state" INTEGER,
+        "viewdate"      INTEGER,
+        PRIMARY KEY("lid")
+);
+''')
+
+            self.conn.execute('''
+CREATE TABLE IF NOT EXISTS "Files" (
+        "fid" INTEGER UNIQUE,
+        "eid" INTEGER,
+        "aid" INTEGER,
+        "aname_e" TEXT,
+        "aname_r" TEXT,
+        "aname_k" TEXT,
+        "epno" TEXT,
+        "epname_e" TEXT,
+        "epname_r" TEXT,
+        "epname_k" TEXT,
+        PRIMARY KEY("fid")
+);
+''')
+
+            self.conn.execute('''
+CREATE TABLE IF NOT EXISTS "PlayNext" (
+        "aid" INTEGER,
+        "epno" TEXT
+);
+''')
+
+            self.conn.execute('''
+CREATE TABLE IF NOT EXISTS "LocalFiles" (
+        "path" TEXT UNIQUE,
+        "size" INTEGER,
+        "hash" TEXT,
+        "fid" INTEGER DEFAULT 0,
+        "checked" INTEGER DEFAULT 0
+);
+''')
+
+            # Create Views
+
+            self.conn.execute('''
+CREATE VIEW Summary AS
+SELECT aname_k, epname_k, epno, (viewdate > 0) as viewed, path
+FROM Files
+LEFT JOIN MyList USING(fid)
+LEFT JOIN LocalFiles USING(fid)
+ORDER BY aname_k, epno;
+''')
+
+            self.conn.execute('''
+CREATE VIEW LocalEpisodeInfo AS
+SELECT Files.aid, Files.fid, path, aname_e, epname_e, aname_r, epname_r, aname_k, epname_k, epno,
+            CASE
+                WHEN epno GLOB '[A-Z]*' THEN
+                    substr(epno, 1, 1)
+                ELSE
+                    ''
+                END epcode, SQ.epnomax, MyList.viewdate != 0 AS viewed
+FROM Files
+LEFT JOIN LocalFiles USING(fid)
+INNER JOIN
+    (
+        SELECT Files.aid, MAX(epno) as epnomax,
+            CASE
+                WHEN epno GLOB '[A-Z]*' THEN
+                    substr(epno, 1, 1)
+                ELSE
+                    ''
+                END epcode
+        FROM Files
+        LEFT JOIN MyList USING(fid)
+        GROUP BY Files.aid, epcode
+    ) AS SQ ON SQ.aid = Files.aid
+LEFT JOIN MyList on Files.fid = MyList.fid
+ORDER BY Files.aid, Files.epno;
+''')
+
+            self.conn.execute('UPDATE Version SET ver=2')
+
+        self.conn.commit()
+

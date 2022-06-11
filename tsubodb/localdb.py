@@ -8,18 +8,22 @@ from tsubodb.hash import hash_files
 from tsubodb.types import *
 from tsubodb._query import _Query
 
-from typing import Any, Dict, Iterable, Iterator, List, Tuple, Optional, Union
+from typing import Iterable, Iterator, Optional
 
 
 class LocalDB:
     def __init__(self, db_file: str, base_anime_folder: str, anidb: AniDB):
         self.base_anime_folder = base_anime_folder
+        os.makedirs(os.path.dirname(db_file), exist_ok=True)
         self.conn = sqlite3.connect(db_file)
         self.anidb = anidb
 
         # Add regexp function.
         self.conn.create_function('regexp', 2, lambda x, y: 1 if re.search(x,y) else 0)
         self.query = _Query(self.conn)
+
+        # Make sure DB is up-to-date
+        self.query.init_db()
 
     def __del__(self) -> None:
         # Maybe don't want this commit here...?
