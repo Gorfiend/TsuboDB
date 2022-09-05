@@ -8,7 +8,7 @@ from tsubodb.types import *
 
 protover = 3
 client = 'tsubodb'
-clientver = 2
+clientver = 3
 
 
 fmask = [

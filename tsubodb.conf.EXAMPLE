@@ -1,10 +1,18 @@
 [tsubodb]
+# Username/password for AniDB
 username = MyUserName
 password = MyPassword
 
+# Base directory that contains all anime video files
 anime-dir = /data/Anime
 
-suffix = avi ogm mkv mp4
+# File suffixes to look for when scanning for new video files
+# suffix = avi ogm mkv mp4
 
-# Language for anime/episode titles, one of: "romaji" (default), "english", "kanji"
-language = kanji
+
+# Program name, or absolute path to executable to use for watching videos
+# video-player = mpv
+# video-player = C:\Program Files (x86)\VideoLAN\VLC\Vlc.exe
+
+# Language to display anime/episode titles, one of: "romaji" (default), "english", "kanji"
+# language = kanji

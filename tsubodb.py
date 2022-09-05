@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 # PYTHON_ARGCOMPLETE_OK
 
-# Path to config file
-CONFIG_FILE_PATH = '~/.config/tsubodb/tsubodb.conf'
-
 import argparse
 import configparser
 import getpass
@@ -11,12 +8,19 @@ import os
 import subprocess
 import sys
 
-import argcomplete
+try:
+    import argcomplete
+except ImportError:
+    argcomplete = None
 
 import tsubodb.api
 import tsubodb.hash
 import tsubodb.localdb
 from tsubodb.types import *
+
+
+# Path to config file
+CONFIG_FILE_PATH = os.path.join(os.path.expanduser('~'), '.config', 'tsubodb', 'tsubodb.conf')
 
 # Colors.
 def red(text: str) -> str:
@@ -41,12 +45,16 @@ def main() -> None:
         config_parser.read([os.path.expanduser(CONFIG_FILE_PATH)])
         for option in config_parser.options('tsubodb'):
             config[option] = config_parser.get('tsubodb', option)
+    except configparser.NoSectionError:
+        pass
     except IOError:
         pass
 
     # Options.
 
     parser = argparse.ArgumentParser(description='Manage anidb files/mylist')
+
+    parser.add_argument('--print-config-path', help='Print the path of the config file in use.', action='store_true')
 
     parser.add_argument('-u', '--username', help='AniDB username.', default=config.get('username'))
     parser.add_argument('-p', '--password', help='AniDB password.', default=config.get('password'))
@@ -57,28 +65,33 @@ def main() -> None:
     parser.add_argument('-s', '--suffix', help='File suffixes to include when scanning directories.',
                         action='append', default=config.get('suffix', '').split())
 
-    parser.add_argument('-w', '--watched', help='Mark files watched.', action='store_true')
     parser.add_argument('--fetch-mylist', help='Re-download mylist into db.', action='store_true')
 
     parser.add_argument('--database-file', help='Database file location.',
                         default=config.get('database-file', os.path.expanduser('~/.config/tsubodb/TsuboDB.db')))
     parser.add_argument('--anime-dir', help='Anime base dir for file scanning.',
                         default=config.get('anime-dir', '.'))
+    parser.add_argument('--video-player', help='Path to program to use for playing videos.', default=config.get('video-player', 'mpv'))
 
     parser.add_argument('--playnext', help='Play next episode then mark watched.', action='store_true')
     parser.add_argument('--play', help='Choose an unfinished anime and watch the next unwatched episode in it.', action='store_true')
 
-    parser.add_argument('--scan', help='Scan dir for new files, and import them. Defaults to anime-dir, or specify.',
+    parser.add_argument('--scan', help='Scan dir for new files, and import them. Defaults to anime-dir, or specify a single sub-dir (either absolute, or relative to anime-dir).',
                         action='append', nargs='?', const=None, default=[])
+    parser.add_argument('-w', '--watched', help='Mark scanned files watched.', action='store_true')
     parser.add_argument('--force-rehash', help='Force rehashing files for scan.', action='store_true')
     parser.add_argument('--force-recheck', help='Force rechecking with anidb files for scan (use after adding files to anidb through Avdump2)', action='store_true')
     parser.add_argument('--fill-database', help='Fill any missing files or Mylists', action='store_true')
     parser.add_argument('--fill-mylist', help='Get/Add MyList for all files.', action='store_true')
 
-    parser.add_argument('--vote', help='Rate an anime by aid.')
+    parser.add_argument('--vote', metavar='AID', help='Rate an anime by aid.')
 
-    argcomplete.autocomplete(parser)
+    if argcomplete:
+        argcomplete.autocomplete(parser)
     args = parser.parse_args()
+
+    if args.print_config_path:
+        print(CONFIG_FILE_PATH)
 
     global language
     language = args.language
@@ -106,6 +119,8 @@ def main() -> None:
         # TODO this can cause bad paths to go into database (../../../.. prefix)
         if path is None:
             path = args.anime_dir
+        elif not os.path.isabs(path):
+            path = os.path.join(args.anime_dir, path)
         for dirpath, _dirnames, filenames in os.walk(path, onerror=print):
             for file in filenames:
                 if any(file.endswith('.' + suffix) for suffix in args.suffix):
@@ -169,10 +184,10 @@ def main() -> None:
             prompt_rate_anime(anidb, aid)
 
         if args.playnext:
-            run_playnext(db, anidb, True)
+            run_playnext(args.video_player, db, anidb, True)
 
         if args.play:
-            run_playnext(db, anidb, False)
+            run_playnext(args.video_player, db, anidb, False)
 
     except tsubodb.types.AniDBUserError:
         print(red('Invalid username/password.'))
@@ -203,32 +218,37 @@ def prompt_rate_anime(anidb: tsubodb.api.AniDB, aid: Aid) -> None:
         except AniDBNoWishlist:
             break  # Removing it, so this is fine
 
-def run_playnext(db: tsubodb.localdb.LocalDB, anidb: tsubodb.api.AniDB, auto_choose: bool) -> None:
+def run_playnext(video_player: str, db: tsubodb.localdb.LocalDB, anidb: tsubodb.api.AniDB, auto_choose: bool) -> None:
     while True:
         playnext = db.get_playnext_file()
         if not auto_choose or not playnext:
             candidates = list(db.get_potential_playnext())
             for i, c in enumerate(candidates):
                 if language == 'kanji':
-                    print(i, c.aname_k, c.epno)
+                    print(i + 1, c.aname_k, c.epno)
                 elif language == 'english':
-                    print(i, c.aname_e, c.epno)
+                    print(i + 1, c.aname_e, c.epno)
                 else:
-                    print(i, c.aname_r, c.epno)
-            while True:
-                try:
-                    choice = input('Select next series to watch: ')
-                    playnext = candidates[int(choice)]
-                    break
-                except (ValueError, IndexError):
-                    print('Invalid choice! (ctrl-c to cancel)')
-                except KeyboardInterrupt:
-                    return
+                    print(i + 1, c.aname_r, c.epno)
+            if len(candidates) == 0:
+                print('No unwatched series! Use "--scan" option to load new videos.')
+                return
+            else:
+                while True:
+                    try:
+                        choice = input('Enter number of next series to watch: ')
+                        playnext = candidates[int(choice) - 1]
+                        break
+                    except (ValueError, IndexError):
+                        print('Invalid choice! (ctrl-c to cancel)')
+                    except KeyboardInterrupt:
+                        return
         if playnext:
             rel = os.path.relpath(db.base_anime_folder, os.getcwd())
             rel = os.path.join(rel, playnext.path)
             print(f'{blue("Playing")}: {playnext.display_string(language)}')
-            subprocess.run(['mpv', rel], check=False)
+            print(video_player)
+            subprocess.run([video_player, rel], check=False)
             try:
                 text = input("Hit enter to mark watched and exit, type something to continue watching, ctrl-c to exit now (don't mark watched): ")
                 db.mark_watched(playnext.fid)

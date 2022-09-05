@@ -57,7 +57,7 @@ class Hashthread(threading.Thread):
     def __init__(self, filelist: List[str], hashlist: List[HashedFile], *args: Any, **kwargs: Any):
         self.filelist = filelist
         self.hashlist = hashlist
-        threading.Thread.__init__(self, *args, **kwargs)
+        threading.Thread.__init__(self, *args, daemon=True, **kwargs)
 
     def run(self) -> None:
         try:
@@ -80,4 +80,4 @@ def hash_files(files: List[str], num_threads: int=1) -> Iterable[HashedFile]:
             yield hashlist.pop(0)
         except IndexError:
             time.sleep(0.1)
-    raise StopIteration
+    return
