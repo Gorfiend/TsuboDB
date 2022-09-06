@@ -247,7 +247,6 @@ def run_playnext(video_player: str, db: tsubodb.localdb.LocalDB, anidb: tsubodb.
             rel = os.path.relpath(db.base_anime_folder, os.getcwd())
             rel = os.path.join(rel, playnext.path)
             print(f'{blue("Playing")}: {playnext.display_string(language)}')
-            print(video_player)
             subprocess.run([video_player, rel], check=False)
             try:
                 text = input("Hit enter to mark watched and exit, type something to continue watching, ctrl-c to exit now (don't mark watched): ")
