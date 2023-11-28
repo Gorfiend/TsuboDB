@@ -1,7 +1,23 @@
 import threading
 import time
 import os
+
+# OpenSSL (which hashlib uses) started disabling the use of md4 by default, so try to enable that here
+# This solution taken from https://github.com/ecederstrand/exchangelib/issues/608
+try:
+    import ctypes
+    ctypes.CDLL("libssl.so.3").OSSL_PROVIDER_load(None, b"legacy")
+    ctypes.CDLL("libssl.so.3").OSSL_PROVIDER_load(None, b"default")
+except:
+    pass
+
 import hashlib
+
+try:
+    hashlib.new('md4')
+except ValueError as e:
+    print(e)
+    print('\x1b[31m' + "ERROR: MD4 hash not supported on this system - cannot hash files. See https://github.com/ecederstrand/exchangelib/issues/608 for a potential solution." + '\x1b[0m')
 
 from tsubodb.types import *
 from typing import Any, Iterable, List
