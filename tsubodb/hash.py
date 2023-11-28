@@ -2,10 +2,9 @@ import threading
 import time
 import os
 import hashlib
-import binascii
 
 from tsubodb.types import *
-from typing import Any, Iterable, List, Mapping
+from typing import Any, Iterable, List
 
 
 class Ed2k:
@@ -75,7 +74,7 @@ def hash_files(files: List[str], num_threads: int=1) -> Iterable[HashedFile]:
         thread = Hashthread(files, hashlist)
         thread.start()
         threads.append(thread)
-    while hashlist or any([thread.isAlive() for thread in threads]):
+    while hashlist or any([thread.is_alive() for thread in threads]):
         try:
             yield hashlist.pop(0)
         except IndexError:
